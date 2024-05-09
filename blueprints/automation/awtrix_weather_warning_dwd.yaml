@@ -1,0 +1,224 @@
+blueprint:
+  name: "AWTRIX DWD weather warnings ⛈️"
+  description: "\nShow weather warnings issued by DWD on your AWTRIX devive.
+    ## ⚠️ REQUIREMENTS ⚠️\nYou MUST have warning icons uploaded to your AWTRIX device to make this blueprint work properly.\n
+    \nYou can call the custom script which will prompt you for your AWTRIX device
+    and then upload the required icons:\n  \n (If you have windows I don't know if
+    this will work)\n\n    bash -c \"$(curl -fsSL https://raw.githubusercontent.com/jc-23/home-assistant/master/icons/upload_icon.sh)\"\n\nUpdates
+    for this blueprint may be found at https://raw.githubusercontent.com/jc-23/home-assistant/master/blueprints/automation/awtrix_weather_warning_dwd.yaml\n\n
+    Credits go to [Jeef](https://github.com/jeeftor) and his [AWTRIX Weather ⛈️ + Forecast + \U0001F315️](https://raw.githubusercontent.com/jeeftor/HomeAssistant/master/blueprints/automation/awtrix_weatherflow.yaml) blueprint on which this blueprint is based."
+  domain: automation
+  input:
+    awtrix:
+      name: AWTRIX Device
+      description: Select your AWTRIX device(s)
+      selector:
+        device:
+          integration: mqtt
+          manufacturer: Blueforcer
+          model: AWTRIX 3
+          multiple: true
+    weather_warning_var:
+      name: DWD weather warning sensor
+      description: "Select the sensor that provides [Deutscher Wetterdienst (DWD) Weather Warnings](https://www.home-assistant.io/integrations/dwd_weather_warnings/) integration\n"
+      selector:
+        entity:
+          filter:
+          - domain:
+            - sensor
+          multiple: false
+    warning_level:
+      name: Show warnings for severity level (and above); not implemented yet
+      description: '0 (default) = all
+
+      1 = warning
+
+      2 = significant
+
+      3 = severe
+
+      4 = extreme'
+      selector:
+        number:
+          max: 4
+          min: 0
+          mode: box
+          step: 1.0
+      default: 0
+    message_duration:
+      name: Warning duration ⏱️
+      description: How long should the warning message remain on the screen (in seconds).  *If
+        you select `0` it will use the Global App Time*
+      selector:
+        number:
+          min: 0.0
+          max: 300.0
+          unit_of_measurement: sec
+          step: 1.0
+          mode: slider
+      default: 15
+    icon_fog:
+      name: Icon for fog
+      description: 'This is the icon ID which maps to the warning type: `59`
+
+        ![](https://developer.lametric.com/content/apps/icon_thumbs/17055_icon_thumb.gif?v=1)'
+      selector:
+        text: {}
+      default: ww-fog
+
+    icon_frost:
+      name: Icon for frost
+      description: 'This is the icon ID which maps to the warning type: `22,82`
+
+        ![](https://developer.lametric.com/content/apps/icon_thumbs/55543_icon_thumb.gif?v=1)'
+      selector:
+        text: {}
+      default: ww-frost
+
+    icon_thunderstorm:
+      name: Icon for thunderstorms
+      description: 'This is the icon ID which maps to the warning type: `31,33,34,36,38,40,41,42,44,45,46,48,49,95,96`
+
+        ![](https://developer.lametric.com/content/apps/icon_thumbs/49299_icon_thumb.gif?v=4)'
+      selector:
+        text: {}
+      default: ww-lightning
+
+    icon_pouring:
+      name: Icon for pouring rain
+      description: 'This is the default icon which maps to the warning type: `61,62,63,64,65,66`
+
+        ![](https://developer.lametric.com/content/apps/icon_thumbs/49300_icon_thumb.gif?v=1)'
+      selector:
+        text: {}
+      default: ww-pouring
+
+    icon_snow:
+      name: Icon for snow fall
+      description: 'This is the icon ID which maps to the warning type: `70,71,72,73,74,75,76`
+
+        ![](https://developer.lametric.com/content/apps/icon_thumbs/2289_icon_thumb.gif?v=1)'
+      selector:
+        text: {}
+      default: ww-snow
+
+    icon_radition:
+      name: Icon for UV radiation/heat
+      description: 'This is the icon ID which maps to the warning type: `246,247,248`
+
+        ![](https://developer.lametric.com/content/apps/icon_thumbs/55544_icon_thumb.gif?v=1)'
+      selector:
+        text: {}
+      default: ww-radiation
+
+    icon_wind:
+      name: Icon for wind
+      description: 'This is the icon ID which maps to the warning type: `51,52,53,54,55,56`
+
+        ![](https://developer.lametric.com/content/apps/icon_thumbs/3363_icon_thumb.gif?v=1)'
+      selector:
+        text: {}
+      default: ww-wind
+
+    icon_thaw:
+      name: Icon for thaw
+      description: 'This is the icon ID which maps to the warning type: `88,89`
+
+        ![](https://developer.lametric.com/content/apps/icon_thumbs/22866_icon_thumb.gif?v=1)'
+      selector:
+        text: {}
+      default: ww-thaw
+
+    icon_blackice:
+      name: Icon for black ice
+      description: 'This is the icon ID which maps to the warning type: `84,85,86,87`
+
+        ![](https://developer.lametric.com/content/apps/icon_thumbs/24231_icon_thumb.gif?v=1)'
+      selector:
+        text: {}
+      default: ww-blackice
+
+    icon_warning:
+      name: Icon for other warnings
+      description: 'This is the icon ID which maps to any other warning type
+
+        ![](https://developer.lametric.com/content/apps/icon_thumbs/16754_icon_thumb.gif?v=1)'
+      selector:
+        text: {}
+      default: ww-generic
+mode: restart
+variables:
+  device_ids: !input awtrix
+  app_topic: jc-23
+  devices_topics: "{%- macro get_device_topic(device_id) %} {{ states((device_entities(device_id) | select('search','device_topic') | list)[0]) }} {%- endmacro %}\n{%- set ns = namespace(devices=[]) %} {%- for device_id in device_ids %}\n  {%- set device=get_device_topic(device_id)|replace('','') %}\n  {% set ns.devices = ns.devices + [ device ~ '/custom/' ~ app_topic] %}\n{%- endfor %} {{ ns.devices | reject('match','unavailable') | list}}"
+  weather_warning_var: !input weather_warning_var
+  warning_level_to_show: !input warning_level
+  message_duration: !input message_duration
+  icon_frost: !input icon_frost
+  icon_thunderstorm: !input icon_thunderstorm
+  icon_pouring: !input icon_pouring
+  icon_snow: !input icon_snow
+  icon_blackice: !input icon_blackice
+  icon_wind: !input icon_wind
+  icon_fog: !input icon_fog
+  icon_thaw: !input icon_thaw
+  icon_radition: !input icon_radition
+  icon_warning: !input icon_warning
+  weather_warning: '{{ states(weather_warning_var) }}'
+  warnings_count: '{{ state_attr(weather_warning_var,''warning_count'')|int }}'
+  warnings: "{%- set warnings = namespace(index=[]) %}
+    {%- for i in range(warnings_count) %}
+      {%- set name = state_attr(weather_warning_var, 'warning_' ~ loop.index ~ '_name') %}
+      {%- set type = state_attr(weather_warning_var, 'warning_' ~ loop.index ~ '_type') %}
+      {%- set level = state_attr(weather_warning_var, 'warning_' ~ loop.index ~ '_level') %}
+      {%- set start = state_attr(weather_warning_var, 'warning_' ~ loop.index ~ '_start') |as_timestamp |timestamp_custom('%a %H:%M', local=true) %}
+      {%- set end = state_attr(weather_warning_var, 'warning_' ~ loop.index ~ '_end') |as_timestamp |timestamp_custom('%a %H:%M', local=true)%}
+      {%- set start_localized = start |replace('Mon','Mo') |replace('Tue','Di') |replace('Wed','Mi') |replace('Thu','Do') |replace('Fri','Fr') |replace('Sat','Sa') |replace('Sun','So') %}
+      {%- set end_localized = end |replace('Mon','Mo') |replace('Tue','Di') |replace('Wed','Mi') |replace('Thu','Do') |replace('Fri','Fr') |replace('Sat','Sa') |replace('Sun','So') %}
+      {%- set warning = {'name': name, 'type': type, 'level': level, 'start': start_localized, 'end': end_localized } %}
+      {%- set warnings.index = warnings.index + [warning] %}
+    {%- endfor %}
+    {{ warnings['index'] }}"
+  warning_color_dict: '{{ dict({1: "#ffeb3b", 2: "#fb8c00", 3: "#e53935", 4: "#880e4f"}) }}'
+  payload: "{%- macro warning_icon(warning_type) %}
+      {%- if warning_type in [22,82] %}{{ icon_frost }}
+      {%- elif warning_type in [31,33,34,36,38,40,41,42,44,45,46,48,49,95,96] %}{{ icon_thunderstorm }}
+      {%- elif warning_type in [51,52,53,54,55,56] %}{{ icon_wind }}
+      {%- elif warning_type == 59 %}{{ icon_fog }}
+      {%- elif warning_type in [61,62,63,64,65,66] %}{{ icon_pouring }}
+      {%- elif warning_type in [70,71,72,73,74,75,76] %}{{ icon_snow }}
+      {%- elif warning_type in [84,85,86,87] %}{{ icon_blackice }}
+      {%- elif warning_type in [88,89] %}{{ icon_thaw }}
+      {%- elif warning_type in [246,247,248] %}{{ icon_radition }}
+      {%- else %}{{ icon_warning }} 
+      {%- endif %}
+    {%- endmacro %}
+    {{ iif(warnings_count > 1, '[', '') }}
+    {%- for i in range(warnings_count) -%}
+      {\"icon\":\"{{ warning_icon(warnings[loop.index0]['type']) }}\", \"text\":\"Warnstufe {{ warnings[loop.index0]['level'] }} vor {{ warnings[loop.index0]['name'] }}, {{ warnings[loop.index0]['start'] }} - {{ warnings[loop.index0]['end'] }}\", \"duration\": {{ message_duration }}, \"color\": \"{{ warning_color_dict[warnings[loop.index0]['level']] }}\", \"pushIcon\": 2}
+      {{ iif(warnings_count > 1 and loop.index < warnings_count, ',', '') }}
+    {%- endfor -%}
+    {{ iif(warnings_count > 1, ']', '') }}"
+
+trigger:
+- platform: state
+  entity_id: !input weather_warning_var
+  id: Changes
+  enabled: true
+condition: []
+action:
+- repeat:
+    for_each: '{{ devices_topics }}'
+    sequence:
+    - service: mqtt.publish
+      data:
+        qos: 0
+        retain: false
+        topic: '{{ repeat.item }}'
+        payload: ''
+    - service: mqtt.publish
+      data:
+        qos: 0
+        retain: false
+        topic: '{{ repeat.item }}'
+        payload: '{{payload}}'
