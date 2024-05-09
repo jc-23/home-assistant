@@ -9,7 +9,7 @@ NC='\033[0m' # No Color
 
 OWNER="jc-23"
 REPO="home-assistant"
-BRANCH="master"
+BRANCH="main"
 DIRECTORY="icons"
 
 # Check if 'jq' is installed
