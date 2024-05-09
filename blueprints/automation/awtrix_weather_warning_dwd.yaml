@@ -1,11 +1,12 @@
 blueprint:
   name: "AWTRIX DWD weather warnings ⛈️"
-  description: "\nShow weather warnings issued by DWD on your AWTRIX devive.
-    ## ⚠️ REQUIREMENTS ⚠️\nYou MUST have warning icons uploaded to your AWTRIX device to make this blueprint work properly.\n
+  description: "\nShow weather warnings issued by DWD on your AWTRIX devive.\n## ⚠️ REQUIREMENTS ⚠️\n
+    You MUST have warning icons uploaded to your AWTRIX device to make this blueprint work properly.\n
     \nYou can call the custom script which will prompt you for your AWTRIX device
     and then upload the required icons:\n  \n (If you have windows I don't know if
-    this will work)\n\n    bash -c \"$(curl -fsSL https://raw.githubusercontent.com/jc-23/home-assistant/master/icons/upload_icon.sh)\"\n\nUpdates
-    for this blueprint may be found at https://raw.githubusercontent.com/jc-23/home-assistant/master/blueprints/automation/awtrix_weather_warning_dwd.yaml\n\n
+    this will work)\n\n    bash -c \"$(curl -fsSL https://raw.githubusercontent.com/jc-23/home-assistant/master/icons/upload_icon.sh)\"\n\n
+    [A legend for the different warning types](https://www.dwd.de/DE/leistungen/opendata/help/warnungen/warning_codes_pdf.pdf?__blob=publicationFile&v=5) mentioned in the icon selections below is available at DWD.\n\n
+    Updates for this blueprint may be found at https://raw.githubusercontent.com/jc-23/home-assistant/master/blueprints/automation/awtrix_weather_warning_dwd.yaml\n\n
     Credits go to [Jeef](https://github.com/jeeftor) and his [AWTRIX Weather ⛈️ + Forecast + \U0001F315️](https://raw.githubusercontent.com/jeeftor/HomeAssistant/master/blueprints/automation/awtrix_weatherflow.yaml) blueprint on which this blueprint is based."
   domain: automation
   input:
