@@ -28,6 +28,15 @@ blueprint:
           - domain:
             - sensor
           multiple: false
+    weather_preliminary_warning_var:
+      name: DWD preliminary weather warning sensor
+      description: "Select the sensor that provides [Deutscher Wetterdienst (DWD) Preliminary Weather Warnings](https://www.home-assistant.io/integrations/dwd_weather_warnings/) integration\n"
+      selector:
+        entity:
+          filter:
+          - domain:
+            - sensor
+          multiple: false
     warning_level:
       name: Show warnings for severity level (and above); not implemented yet
       description: '0 (default) = all
@@ -153,6 +162,7 @@ variables:
   app_topic: jc-23
   devices_topics: "{%- macro get_device_topic(device_id) %} {{ states((device_entities(device_id) | select('search','device_topic') | list)[0]) }} {%- endmacro %}\n{%- set ns = namespace(devices=[]) %} {%- for device_id in device_ids %}\n  {%- set device=get_device_topic(device_id)|replace('','') %}\n  {% set ns.devices = ns.devices + [ device ~ '/custom/' ~ app_topic] %}\n{%- endfor %} {{ ns.devices | reject('match','unavailable') | list}}"
   weather_warning_var: !input weather_warning_var
+  weather_preliminary_warning_var: !input weather_preliminary_warning_var
   warning_level_to_show: !input warning_level
   message_duration: !input message_duration
   icon_frost: !input icon_frost
@@ -165,19 +175,27 @@ variables:
   icon_thaw: !input icon_thaw
   icon_radition: !input icon_radition
   icon_warning: !input icon_warning
-  weather_warning: '{{ states(weather_warning_var) }}'
   warnings_count: '{{ state_attr(weather_warning_var,''warning_count'')|int }}'
-  warnings: "{%- set warnings = namespace(index=[]) %}
-    {%- for i in range(warnings_count) %}
-      {%- set name = state_attr(weather_warning_var, 'warning_' ~ loop.index ~ '_name') %}
-      {%- set type = state_attr(weather_warning_var, 'warning_' ~ loop.index ~ '_type') %}
-      {%- set level = state_attr(weather_warning_var, 'warning_' ~ loop.index ~ '_level') %}
-      {%- set start = state_attr(weather_warning_var, 'warning_' ~ loop.index ~ '_start') |as_timestamp |timestamp_custom('%a %H:%M', local=true) %}
-      {%- set end = state_attr(weather_warning_var, 'warning_' ~ loop.index ~ '_end') |as_timestamp |timestamp_custom('%a %H:%M', local=true)%}
+  preliminary_warnings_count: '{{ state_attr(weather_preliminary_warning_var,''warning_count'')|int }}'
+  total_warnings_count: '{{ warnings_count + preliminary_warnings_count }}'
+  warnings: "{%- macro warning_json(warning_entity, index, preliminary) %}
+      {%- set name = state_attr(warning_entity, 'warning_' ~ index ~ '_name') %}
+      {%- set type = state_attr(warning_entity, 'warning_' ~ index ~ '_type') %}
+      {%- set level = state_attr(warning_entity, 'warning_' ~ index ~ '_level') %}
+      {%- set start = state_attr(warning_entity, 'warning_' ~ index ~ '_start') |as_timestamp |timestamp_custom('%a %H:%M', local=true) %}
+      {%- set end = state_attr(warning_entity, 'warning_' ~ index ~ '_end') |as_timestamp |timestamp_custom('%a %H:%M', local=true)%}
       {%- set start_localized = start |replace('Mon','Mo') |replace('Tue','Di') |replace('Wed','Mi') |replace('Thu','Do') |replace('Fri','Fr') |replace('Sat','Sa') |replace('Sun','So') %}
       {%- set end_localized = end |replace('Mon','Mo') |replace('Tue','Di') |replace('Wed','Mi') |replace('Thu','Do') |replace('Fri','Fr') |replace('Sat','Sa') |replace('Sun','So') %}
-      {%- set color = state_attr(weather_warning_var, 'warning_' ~ loop.index ~ '_color') %}
-      {%- set warning = {'name': name, 'type': type, 'level': level, 'start': start_localized, 'end': end_localized, 'color': color } %}
+      {%- set color = state_attr(warning_entity, 'warning_' ~ index ~ '_color') %}
+      {{ '{ \"name\": \"' + name + '\", \"type\": ' ~ type ~ ', \"level\": ' ~ level ~ ', \"start\": \"' + start_localized + '\", \"end\": \"' + end_localized + '\", \"color\": \"' + color + '\", \"preliminary\": ' ~ preliminary ~ ' }' }}
+    {%- endmacro %}
+    {%- set warnings = namespace(index=[]) %}
+    {%- for i in range(warnings_count) %}
+      {%- set warning = warning_json(weather_warning_var, loop.index, 0)|from_json %}
+      {%- set warnings.index = warnings.index + [warning] %}
+    {%- endfor %}
+    {%- for i in range(preliminary_warnings_count) %}
+      {%- set warning = warning_json(weather_preliminary_warning_var, loop.index, 1)|from_json %}
       {%- set warnings.index = warnings.index + [warning] %}
     {%- endfor %}
     {{ warnings['index'] }}"
@@ -195,12 +213,12 @@ variables:
       {%- else %}{{ icon_warning }} 
       {%- endif %}
     {%- endmacro %}
-    {{ iif(warnings_count > 1, '[', '') }}
-    {%- for i in range(warnings_count) -%}
-      {\"icon\":\"{{ warning_icon(warnings[loop.index0]['type']) }}\", \"text\":\"{%- if warnings[loop.index0]['type'] in [40,55,65,75,85,89] %}Vorwarn{%- else %}Warn{%- endif %}stufe {{ warnings[loop.index0]['level'] }}: {{ warnings[loop.index0]['name'] }}, {{ warnings[loop.index0]['start'] }} - {{ warnings[loop.index0]['end'] }}\", \"duration\": {{ message_duration }}, \"color\": \"{{ warnings[loop.index0]['color'] }}\", \"pushIcon\": 2}
-      {{ iif(warnings_count > 1 and loop.index < warnings_count, ',', '') }}
+    {{ iif(total_warnings_count > 1, '[', '') }}
+    {%- for i in range(total_warnings_count) -%}
+      {\"icon\":\"{{ warning_icon(warnings[loop.index0]['type']) }}\", \"text\":\"{%- if warnings[loop.index0]['preliminary'] == 1 %}Vorwarn{%- else %}Warn{%- endif %}stufe {{ warnings[loop.index0]['level'] }}: {{ warnings[loop.index0]['name'] }}, {{ warnings[loop.index0]['start'] }} - {{ warnings[loop.index0]['end'] }}\", \"duration\": {{ message_duration }}, \"color\": \"{{ warnings[loop.index0]['color'] }}\", \"pushIcon\": 2}
+      {{ iif(total_warnings_count > 1 and loop.index < total_warnings_count, ',', '') }}
     {%- endfor -%}
-    {{ iif(warnings_count > 1, ']', '') }}"
+    {{ iif(total_warnings_count > 1, ']', '') }}"
 
 trigger:
 - platform: state
