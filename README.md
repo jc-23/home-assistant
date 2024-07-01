@@ -14,4 +14,4 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/jc-23/home-assistant/mas
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/jc-23/home-assistant/master/icons/upload_icon.sh)" -- IP_ADDRESS_OF_CLOCK
 ```
 
-[^1]: Credits go to [Jeef](https://github.com/jeeftor) and his [AWTRIX Weather ⛈️ + Forecast + \U0001F315️](https://raw.githubusercontent.com/jeeftor/HomeAssistant/master/blueprints/automation/awtrix_weatherflow.yaml) blueprint on which this blueprint is based.
+[^1]: Credits go to [Jeef](https://github.com/jeeftor) and his [AWTRIX Weather ⛈️ + Forecast + 🌕️ (Service Calls)](https://raw.githubusercontent.com/jeeftor/HomeAssistant/master/blueprints/automation/awtrix_weatherflow.yaml) blueprint on which this blueprint is based.
