@@ -176,7 +176,8 @@ variables:
       {%- set end = state_attr(weather_warning_var, 'warning_' ~ loop.index ~ '_end') |as_timestamp |timestamp_custom('%a %H:%M', local=true)%}
       {%- set start_localized = start |replace('Mon','Mo') |replace('Tue','Di') |replace('Wed','Mi') |replace('Thu','Do') |replace('Fri','Fr') |replace('Sat','Sa') |replace('Sun','So') %}
       {%- set end_localized = end |replace('Mon','Mo') |replace('Tue','Di') |replace('Wed','Mi') |replace('Thu','Do') |replace('Fri','Fr') |replace('Sat','Sa') |replace('Sun','So') %}
-      {%- set warning = {'name': name, 'type': type, 'level': level, 'start': start_localized, 'end': end_localized } %}
+      {%- set color = state_attr(weather_warning_var, 'warning_' ~ loop.index ~ '_color') %}
+      {%- set warning = {'name': name, 'type': type, 'level': level, 'start': start_localized, 'end': end_localized, 'color': color } %}
       {%- set warnings.index = warnings.index + [warning] %}
     {%- endfor %}
     {{ warnings['index'] }}"
@@ -196,7 +197,7 @@ variables:
     {%- endmacro %}
     {{ iif(warnings_count > 1, '[', '') }}
     {%- for i in range(warnings_count) -%}
-      {\"icon\":\"{{ warning_icon(warnings[loop.index0]['type']) }}\", \"text\":\"Warnstufe {{ warnings[loop.index0]['level'] }} vor {{ warnings[loop.index0]['name'] }}, {{ warnings[loop.index0]['start'] }} - {{ warnings[loop.index0]['end'] }}\", \"duration\": {{ message_duration }}, \"color\": \"{{ warning_color_dict[warnings[loop.index0]['level']] }}\", \"pushIcon\": 2}
+      {\"icon\":\"{{ warning_icon(warnings[loop.index0]['type']) }}\", \"text\":\"{%- if warnings[loop.index0]['type'] in [40,55,65,75,85,89] %}Vorwarn{%- else %}Warn{%- endif %}stufe {{ warnings[loop.index0]['level'] }}: {{ warnings[loop.index0]['name'] }}, {{ warnings[loop.index0]['start'] }} - {{ warnings[loop.index0]['end'] }}\", \"duration\": {{ message_duration }}, \"color\": \"{{ warnings[loop.index0]['color'] }}\", \"pushIcon\": 2}
       {{ iif(warnings_count > 1 and loop.index < warnings_count, ',', '') }}
     {%- endfor -%}
     {{ iif(warnings_count > 1, ']', '') }}"

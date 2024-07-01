@@ -15,5 +15,3 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/jc-23/home-assistant/mas
 ```
 
 [^1]: Credits go to [Jeef](https://github.com/jeeftor) and his [AWTRIX Weather ⛈️ + Forecast + \U0001F315️](https://raw.githubusercontent.com/jeeftor/HomeAssistant/master/blueprints/automation/awtrix_weatherflow.yaml) blueprint on which this blueprint is based.
-
-<https://my.home-assistant.io/create-link/?redirect=blueprint_import>
