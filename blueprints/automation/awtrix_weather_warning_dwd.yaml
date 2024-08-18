@@ -215,7 +215,7 @@ variables:
     {%- endmacro %}
     {{ iif(total_warnings_count > 1, '[', '') }}
     {%- for i in range(total_warnings_count) -%}
-      {\"icon\":\"{{ warning_icon(warnings[loop.index0]['type']) }}\", \"text\":\"{%- if warnings[loop.index0]['preliminary'] == 1 %}Vorwarn{%- else %}Warn{%- endif %}stufe {{ warnings[loop.index0]['level'] }}: {{ warnings[loop.index0]['name'] }}, {{ warnings[loop.index0]['start'] }} - {{ warnings[loop.index0]['end'] }}\", \"duration\": {{ message_duration }}, \"color\": \"{{ warnings[loop.index0]['color'] }}\", \"pushIcon\": 2}
+      {\"icon\":\"{{ warning_icon(warnings[loop.index0]['type']) }}\", \"text\":\"{%- if warnings[loop.index0]['preliminary'] == 1 %}Vorwarn{%- else %}Warn{%- endif %}stufe {{ warnings[loop.index0]['level']|replace(\"VORABINFORMATION \", \"\") }}: {{ warnings[loop.index0]['name'] }}, {{ warnings[loop.index0]['start'] }} - {{ warnings[loop.index0]['end'] }}\", \"duration\": {{ message_duration }}, \"color\": \"{{ warnings[loop.index0]['color'] }}\", \"pushIcon\": 2}
       {{ iif(total_warnings_count > 1 and loop.index < total_warnings_count, ',', '') }}
     {%- endfor -%}
     {{ iif(total_warnings_count > 1, ']', '') }}"
