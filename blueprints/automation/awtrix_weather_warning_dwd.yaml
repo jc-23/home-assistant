@@ -15,9 +15,10 @@ blueprint:
       description: Select your AWTRIX device(s)
       selector:
         device:
-          integration: mqtt
-          manufacturer: Blueforcer
-          model: AWTRIX 3
+          filter:
+          - integration: mqtt
+          - manufacturer: Blueforcer
+          - model: AWTRIX 3
           multiple: true
     weather_warning_var:
       name: DWD weather warning sensor
@@ -55,18 +56,15 @@ blueprint:
           mode: box
           step: 1.0
       default: 0
-    message_duration:
-      name: Warning duration ⏱️
-      description: How long should the warning message remain on the screen (in seconds).  *If
-        you select `0` it will use the Global App Time*
+    message_repeat:
+      name: Warning repeat 🔄
+      description: How often should the warning message be repeated on screen.
       selector:
         number:
-          min: 0.0
-          max: 300.0
-          unit_of_measurement: sec
+          min: 1
+          max: 10
           step: 1.0
-          mode: slider
-      default: 15
+      default: 2
     icon_fog:
       name: Icon for fog
       description: 'This is the icon ID which maps to the warning type: `59`
@@ -164,7 +162,7 @@ variables:
   weather_warning_var: !input weather_warning_var
   weather_preliminary_warning_var: !input weather_preliminary_warning_var
   warning_level_to_show: !input warning_level
-  message_duration: !input message_duration
+  message_repeat: !input message_repeat
   icon_frost: !input icon_frost
   icon_thunderstorm: !input icon_thunderstorm
   icon_pouring: !input icon_pouring
@@ -215,28 +213,28 @@ variables:
     {%- endmacro %}
     {{ iif(total_warnings_count > 1, '[', '') }}
     {%- for i in range(total_warnings_count) -%}
-      {\"icon\":\"{{ warning_icon(warnings[loop.index0]['type']) }}\", \"text\":\"{%- if warnings[loop.index0]['preliminary'] == 1 %}Vorwarn{%- else %}Warn{%- endif %}stufe {{ warnings[loop.index0]['level'] }}: {{ warnings[loop.index0]['name']|replace(\"VORABINFORMATION \", \"\") }}, {{ warnings[loop.index0]['start'] }} - {{ warnings[loop.index0]['end'] }}\", \"duration\": {{ message_duration }}, \"color\": \"{{ warnings[loop.index0]['color'] }}\", \"pushIcon\": 2}
+      {\"icon\":\"{{ warning_icon(warnings[loop.index0]['type']) }}\", \"text\":\"{%- if warnings[loop.index0]['preliminary'] == 1 %}Vorwarn{%- else %}Warn{%- endif %}stufe {{ warnings[loop.index0]['level'] }}: {{ warnings[loop.index0]['name']|replace(\"VORABINFORMATION \", \"\") }}, {{ warnings[loop.index0]['start'] }} - {{ warnings[loop.index0]['end'] }}\", \"repeat\": {{ message_repeat }}, \"color\": \"{{ warnings[loop.index0]['color'] }}\", \"pushIcon\": 2}
       {{ iif(total_warnings_count > 1 and loop.index < total_warnings_count, ',', '') }}
     {%- endfor -%}
     {{ iif(total_warnings_count > 1, ']', '') }}"
 
-trigger:
-- platform: state
+triggers:
+- trigger: state
   entity_id: !input weather_warning_var
   id: Changes
   enabled: true
-condition: []
-action:
+conditions: []
+actions:
 - repeat:
     for_each: '{{ devices_topics }}'
     sequence:
-    - service: mqtt.publish
+    - action: mqtt.publish
       data:
         qos: 0
         retain: false
         topic: '{{ repeat.item }}'
         payload: ''
-    - service: mqtt.publish
+    - action: mqtt.publish
       data:
         qos: 0
         retain: false
