@@ -39,10 +39,8 @@ blueprint:
             - sensor
           multiple: false
     warning_level:
-      name: Show warnings for severity level (and above); not implemented yet
-      description: '0 (default) = all
-
-      1 = warning
+      name: Show warnings for severity level (and above)
+      description: '1 = warning (default)
 
       2 = significant
 
@@ -52,10 +50,9 @@ blueprint:
       selector:
         number:
           max: 4
-          min: 0
-          mode: box
+          min: 1
           step: 1.0
-      default: 0
+      default: 1
     message_repeat:
       name: Warning repeat 🔄
       description: How often should the warning message be repeated on screen.
@@ -175,7 +172,6 @@ variables:
   icon_warning: !input icon_warning
   warnings_count: '{{ state_attr(weather_warning_var,''warning_count'')|int }}'
   preliminary_warnings_count: '{{ state_attr(weather_preliminary_warning_var,''warning_count'')|int }}'
-  total_warnings_count: '{{ warnings_count + preliminary_warnings_count }}'
   warnings: "{%- macro warning_json(warning_entity, index, preliminary) %}
       {%- set name = state_attr(warning_entity, 'warning_' ~ index ~ '_name') %}
       {%- set type = state_attr(warning_entity, 'warning_' ~ index ~ '_type') %}
@@ -189,15 +185,18 @@ variables:
     {%- endmacro %}
     {%- set warnings = namespace(index=[]) %}
     {%- for i in range(warnings_count) %}
-      {%- set warning = warning_json(weather_warning_var, loop.index, 0)|from_json %}
-      {%- set warnings.index = warnings.index + [warning] %}
+      {%- if state_attr(weather_warning_var, 'warning_' ~ loop.index ~ '_level') >= warning_level_to_show|int %}
+        {%- set warning = warning_json(weather_warning_var, loop.index, 0)|from_json %}
+        {%- set warnings.index = warnings.index + [warning] %}
+      {%- endif %}
     {%- endfor %}
     {%- for i in range(preliminary_warnings_count) %}
-      {%- set warning = warning_json(weather_preliminary_warning_var, loop.index, 1)|from_json %}
-      {%- set warnings.index = warnings.index + [warning] %}
+      {%- if state_attr(weather_preliminary_warning_var, 'warning_' ~ loop.index ~ '_level') >= warning_level_to_show|int %}
+        {%- set warning = warning_json(weather_preliminary_warning_var, loop.index, 1)|from_json %}
+        {%- set warnings.index = warnings.index + [warning] %}
+      {%- endif %}
     {%- endfor %}
     {{ warnings['index'] }}"
-  warning_color_dict: '{{ dict({1: "#ffeb3b", 2: "#fb8c00", 3: "#e53935", 4: "#880e4f"}) }}'
   payload: "{%- macro warning_icon(warning_type) %}
       {%- if warning_type in [22,82] %}{{ icon_frost }}
       {%- elif warning_type in [31,33,34,36,38,40,41,42,44,45,46,48,49,95,96] %}{{ icon_thunderstorm }}
@@ -211,12 +210,12 @@ variables:
       {%- else %}{{ icon_warning }} 
       {%- endif %}
     {%- endmacro %}
-    {{ iif(total_warnings_count > 1, '[', '') }}
-    {%- for i in range(total_warnings_count) -%}
+    {{ iif(warnings|length > 1, '[', '') }}
+    {%- for i in range(warnings|length) -%}
       {\"icon\":\"{{ warning_icon(warnings[loop.index0]['type']) }}\", \"text\":\"{%- if warnings[loop.index0]['preliminary'] == 1 %}Vorwarn{%- else %}Warn{%- endif %}stufe {{ warnings[loop.index0]['level'] }}: {{ warnings[loop.index0]['name']|replace(\"VORABINFORMATION \", \"\") }}, {{ warnings[loop.index0]['start'] }} - {{ warnings[loop.index0]['end'] }}\", \"repeat\": {{ message_repeat }}, \"color\": \"{{ warnings[loop.index0]['color'] }}\", \"pushIcon\": 2}
-      {{ iif(total_warnings_count > 1 and loop.index < total_warnings_count, ',', '') }}
+      {{ iif(warnings|length > 1 and loop.index < warnings|length, ',', '') }}
     {%- endfor -%}
-    {{ iif(total_warnings_count > 1, ']', '') }}"
+    {{ iif(warnings|length > 1, ']', '') }}"
 
 triggers:
 - trigger: state
