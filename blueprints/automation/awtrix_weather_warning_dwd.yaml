@@ -87,7 +87,7 @@ blueprint:
         ![](https://developer.lametric.com/content/apps/icon_thumbs/49299_icon_thumb.gif?v=4)'
       selector:
         text: {}
-      default: ww-lightning
+      default: ww-thunderstorm
 
     icon_pouring:
       name: Icon for pouring rain
