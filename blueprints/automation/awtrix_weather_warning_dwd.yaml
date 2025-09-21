@@ -87,6 +87,12 @@ blueprint:
           max: 10
           step: 1.0
       default: 2
+    send_on_change_only:
+      name: Show only when warnings change
+      description: Skip publishing identical warning and preliminary warning payloads.
+      selector:
+        boolean: {}
+      default: false
     play_beep:
       name: Play beep on new warning
       description: Enable to send an RTTTL tone with the MQTT payload.
@@ -204,6 +210,7 @@ variables:
   weather_preliminary_warning_var: !input weather_preliminary_warning_var
   warning_level_to_show: !input warning_level
   message_repeat: !input message_repeat
+  send_on_change_only: !input send_on_change_only
   play_beep: !input play_beep
   beep_rtttl: !input beep_rtttl
   icon_frost: !input icon_frost
@@ -224,6 +231,52 @@ variables:
       0 if not weather_preliminary_warning_var
       else state_attr(weather_preliminary_warning_var, 'warning_count') | int
     }}
+  should_publish: >-
+    {% if not send_on_change_only %}
+      {{ true }}
+    {% elif trigger is not defined %}
+      {{ true }}
+    {% elif trigger.to_state is none %}
+      {{ false }}
+    {% elif trigger.from_state is none %}
+      {{ true }}
+    {% else %}
+      {% macro build_signature(attrs, severity, prefix) -%}
+        {%- set result = [] -%}
+        {%- set count = attrs.get('warning_count', 0) | int(0) -%}
+        {%- for idx in range(1, count + 1) -%}
+          {%- set level = attrs.get('warning_' ~ idx ~ '_level') -%}
+          {%- if level is not none and level | int(0) >= severity -%}
+            {%- set pieces = [
+              prefix,
+              level | int(0),
+              attrs.get('warning_' ~ idx ~ '_type'),
+              attrs.get('warning_' ~ idx ~ '_start'),
+              attrs.get('warning_' ~ idx ~ '_end'),
+              attrs.get('warning_' ~ idx ~ '_name'),
+              attrs.get('warning_' ~ idx ~ '_color'),
+              attrs.get('warning_' ~ idx ~ '_description') if show_details else ''
+            ] -%}
+            {%- set normalized = [] -%}
+            {%- for piece in pieces -%}
+              {%- set normalized = normalized + [piece | default('') | string] -%}
+            {%- endfor -%}
+            {%- set result = result + [normalized | join('~')] -%}
+          {%- endif -%}
+        {%- endfor -%}
+        {{ result | sort | join('||') }}
+      {%- endmacro %}
+      {% set severity = warning_level_to_show | int %}
+      {% set current = trigger.to_state.attributes %}
+      {% set previous = trigger.from_state.attributes %}
+      {% if trigger.entity_id == weather_warning_var %}
+        {{ build_signature(current, severity, 'warn') != build_signature(previous, severity, 'warn') }}
+      {% elif weather_preliminary_warning_var and trigger.entity_id == weather_preliminary_warning_var %}
+        {{ build_signature(current, severity, 'pre') != build_signature(previous, severity, 'pre') }}
+      {% else %}
+        {{ true }}
+      {% endif %}
+    {% endif %}
   payload: |-
     {%- set day_names = {
       'Mon': ['Mo', 'Montag'],
@@ -355,29 +408,34 @@ triggers:
     enabled: true
 conditions: []
 actions:
-  - repeat:
-      for_each: "{{ devices_topics }}"
-      sequence:
-        - action: mqtt.publish
-          data:
-            qos: 0
-            retain: false
-            topic: "{{ repeat.item }}"
-            payload: ''
-        - choose:
-            - conditions:
-                - condition: template
-                  value_template: "{{ play_beep and payload != '' }}"
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ should_publish }}"
+        sequence:
+          - repeat:
+              for_each: "{{ devices_topics }}"
               sequence:
                 - action: mqtt.publish
                   data:
                     qos: 0
                     retain: false
-                    topic: "{{ repeat.item | replace('/custom/' ~ app_topic, '/rtttl') }}"
-                    payload: "{{ beep_rtttl }}"
-        - action: mqtt.publish
-          data:
-            qos: 0
-            retain: false
-            topic: "{{ repeat.item }}"
-            payload: "{{ payload }}"
+                    topic: "{{ repeat.item }}"
+                    payload: ''
+                - choose:
+                    - conditions:
+                        - condition: template
+                          value_template: "{{ play_beep and payload != '' }}"
+                      sequence:
+                        - action: mqtt.publish
+                          data:
+                            qos: 0
+                            retain: false
+                            topic: "{{ repeat.item | replace('/custom/' ~ app_topic, '/rtttl') }}"
+                            payload: "{{ beep_rtttl }}"
+                - action: mqtt.publish
+                  data:
+                    qos: 0
+                    retain: false
+                    topic: "{{ repeat.item }}"
+                    payload: "{{ payload }}"
