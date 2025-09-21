@@ -260,6 +260,7 @@ variables:
           'icon': warning_icon(warning_type),
           'text': text,
           'repeat': message_repeat,
+          'lifetime': 5,
           'color': color,
           'pushIcon': 2
         } -%}
@@ -289,6 +290,7 @@ variables:
             'icon': warning_icon(warning_type),
             'text': text,
             'repeat': message_repeat,
+            'lifetime': 5,
             'color': color,
             'pushIcon': 2
           } -%}
