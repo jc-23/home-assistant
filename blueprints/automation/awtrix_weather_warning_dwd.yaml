@@ -72,6 +72,12 @@ blueprint:
           min: 1
           step: 1.0
       default: 1
+    show_details:
+      name: Show warning details
+      description: Append the official description after the time range when available.
+      selector:
+        boolean: {}
+      default: false
     message_repeat:
       name: Warning repeat 🔄
       description: How often should the warning message be repeated on screen.
@@ -211,6 +217,7 @@ variables:
   icon_radition: !input icon_radition
   icon_warning: !input icon_warning
   full_day_names: !input full_day_names
+  show_details: !input show_details
   warnings_count: "{{ state_attr(weather_warning_var, 'warning_count') | int }}"
   preliminary_warnings_count: >-
     {{
@@ -256,6 +263,8 @@ variables:
       {%- set level = state_attr(weather_warning_var, 'warning_' ~ loop.index ~ '_level') -%}
       {%- if level is not none and level >= warning_level_to_show | int -%}
         {%- set name = state_attr(weather_warning_var, 'warning_' ~ loop.index ~ '_name') -%}
+        {%- set description = state_attr(weather_warning_var, 'warning_' ~ loop.index ~ '_description') -%}
+        {%- set description = state_attr(weather_warning_var, 'warning_' ~ loop.index ~ '_description') -%}
         {%- set warning_type = state_attr(weather_warning_var, 'warning_' ~ loop.index ~ '_type') | int -%}
         {%- set color = state_attr(weather_warning_var, 'warning_' ~ loop.index ~ '_color') -%}
         {%- set start_ts = state_attr(weather_warning_var, 'warning_' ~ loop.index ~ '_start') | as_timestamp -%}
@@ -269,12 +278,18 @@ variables:
         {%- set prefix = 'Warn' -%}
         {%- set name_clean = name | replace('VORABINFORMATION ', '') -%}
         {%- set text = prefix ~ 'stufe ' ~ level ~ ': ' ~ name_clean
-          ~ ', ' ~ start_label ~ ' ' ~ start_time ~ ' - ' ~ end_label ~ ' ' ~ end_time -%}
+          ~ ', ' ~ start_label ~ ' ' ~ start_time ~ ' Uhr - ' ~ end_label ~ ' ' ~ end_time ~ ' Uhr' -%}
+        {%- if show_details and description -%}
+          {%- set desc_clean = description | replace('\n', ' ') | regex_replace('\s+', ' ') | trim -%}
+          {%- if desc_clean -%}
+            {%- set text = (text ~ ' : ' ~ desc_clean) | truncate(320, True, '…') -%}
+          {%- endif -%}
+        {%- endif -%}
         {%- set frame = {
           'icon': warning_icon(warning_type),
           'text': text,
           'repeat': message_repeat | int,
-          'lifetime': 5,
+          'lifetime': 1,
           'color': color,
           'pushIcon': 2
         } -%}
@@ -289,6 +304,7 @@ variables:
         {%- set level = state_attr(weather_preliminary_warning_var, 'warning_' ~ loop.index ~ '_level') -%}
         {%- if level is not none and level >= warning_level_to_show | int -%}
           {%- set name = state_attr(weather_preliminary_warning_var, 'warning_' ~ loop.index ~ '_name') -%}
+          {%- set description = state_attr(weather_preliminary_warning_var, 'warning_' ~ loop.index ~ '_description') -%}
           {%- set warning_type = state_attr(weather_preliminary_warning_var, 'warning_' ~ loop.index ~ '_type') | int -%}
           {%- set color = state_attr(weather_preliminary_warning_var, 'warning_' ~ loop.index ~ '_color') -%}
           {%- set start_ts = state_attr(weather_preliminary_warning_var, 'warning_' ~ loop.index ~ '_start') | as_timestamp -%}
@@ -302,12 +318,18 @@ variables:
           {%- set prefix = 'Vorwarn' -%}
           {%- set name_clean = name | replace('VORABINFORMATION ', '') -%}
           {%- set text = prefix ~ 'stufe ' ~ level ~ ': ' ~ name_clean
-            ~ ', ' ~ start_label ~ ' ' ~ start_time ~ ' - ' ~ end_label ~ ' ' ~ end_time -%}
+            ~ ', ' ~ start_label ~ ' ' ~ start_time ~ ' Uhr - ' ~ end_label ~ ' ' ~ end_time ~ ' Uhr' -%}
+          {%- if show_details and description -%}
+            {%- set desc_clean = description | replace('\n', ' ') | regex_replace('\s+', ' ') | trim -%}
+            {%- if desc_clean -%}
+              {%- set text = (text ~ ' : ' ~ desc_clean) | truncate(320, True, '…') -%}
+            {%- endif -%}
+          {%- endif -%}
           {%- set frame = {
             'icon': warning_icon(warning_type),
             'text': text,
             'repeat': message_repeat | int,
-            'lifetime': 5,
+            'lifetime': 1,
             'color': color,
             'pushIcon': 2
           } -%}
