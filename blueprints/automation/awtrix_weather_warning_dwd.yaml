@@ -1,58 +1,83 @@
+# yamllint disable rule:line-length
+---
 blueprint:
   name: "AWTRIX DWD weather warnings ⛈️"
-  description: "\nShow weather warnings issued by DWD on your AWTRIX devive.\n## ⚠️ REQUIREMENTS ⚠️\n
-    You MUST have warning icons uploaded to your AWTRIX device to make this blueprint work properly.\n
-    \nYou can call the custom script which will prompt you for your AWTRIX device
-    and then upload the required icons:\n  \n (If you have windows I don't know if
-    this will work)\n\n    bash -c \"$(curl -fsSL https://raw.githubusercontent.com/jc-23/home-assistant/master/icons/upload_icon.sh)\"\n\n
-    [A legend for the different warning types](https://www.dwd.de/DE/leistungen/opendata/help/warnungen/warning_codes_pdf.pdf?__blob=publicationFile&v=5) mentioned in the icon selections below is available at DWD.\n\n
-    Updates for this blueprint may be found at https://raw.githubusercontent.com/jc-23/home-assistant/master/blueprints/automation/awtrix_weather_warning_dwd.yaml\n\n
-    Credits go to [Jeef](https://github.com/jeeftor) and his [AWTRIX Weather ⛈️ + Forecast + \U0001F315️](https://raw.githubusercontent.com/jeeftor/HomeAssistant/master/blueprints/automation/awtrix_weatherflow.yaml) blueprint on which this blueprint is based."
+  description: |-
+    Show weather warnings issued by DWD on your AWTRIX device.
+
+    ## ⚠️ REQUIREMENTS ⚠️
+    You MUST upload the warning icons to your AWTRIX device before using this
+    blueprint.
+
+    Run the upload script:
+      bash -c "$(curl -fsSL https://raw.githubusercontent.com/jc-23/home-assistant/master/icons/upload_icon.sh)"
+
+    Provide the clock address when needed:
+      bash -c "$(curl -fsSL https://raw.githubusercontent.com/jc-23/home-assistant/master/icons/upload_icon.sh)" -- IP_ADDRESS_OF_CLOCK
+
+    A legend for the warning types is available at:
+      https://www.dwd.de/DE/leistungen/opendata/help/warnungen/warning_codes_pdf.pdf?__blob=publicationFile&v=5
+
+    Updates for this blueprint:
+      https://raw.githubusercontent.com/jc-23/home-assistant/master/blueprints/automation/awtrix_weather_warning_dwd.yaml
+
+    Credits go to Jeef for the original AWTRIX Weather blueprint.
   domain: automation
   input:
     awtrix:
       name: AWTRIX Device
-      description: Select your AWTRIX device(s)
+      description: Select your AWTRIX device(s).
       selector:
         device:
           filter:
-          - integration: mqtt
-          - manufacturer: Blueforcer
-          - model: AWTRIX 3
+            - integration: mqtt
+            - manufacturer: Blueforcer
+            - model: AWTRIX 3
           multiple: true
     weather_warning_var:
       name: DWD weather warning sensor
-      description: "Select the sensor that provides [Deutscher Wetterdienst (DWD) Weather Warnings](https://www.home-assistant.io/integrations/dwd_weather_warnings/) integration\n"
+      description: >-
+        Select the sensor that provides
+        [Deutscher Wetterdienst (DWD) Weather Warnings](https://www.home-assistant.io/integrations/dwd_weather_warnings/)
+        integration.
       selector:
         entity:
           filter:
-          - domain:
-            - sensor
+            - domain:
+                - sensor
           multiple: false
     weather_preliminary_warning_var:
       name: DWD preliminary weather warning sensor
-      description: "Select the sensor that provides [Deutscher Wetterdienst (DWD) Preliminary Weather Warnings](https://www.home-assistant.io/integrations/dwd_weather_warnings/) integration\n"
+      description: >-
+        Select the sensor that provides
+        [Deutscher Wetterdienst (DWD) Preliminary Weather Warnings](https://www.home-assistant.io/integrations/dwd_weather_warnings/)
+        integration.
+      default: ~
       selector:
         entity:
           filter:
-          - domain:
-            - sensor
+            - domain:
+                - sensor
           multiple: false
     warning_level:
       name: Show warnings for severity level (and above)
-      description: '1 = warning (default)
-
-      2 = significant
-
-      3 = severe
-
-      4 = extreme'
+      description: |-
+        1 = warning (default)
+        2 = significant
+        3 = severe
+        4 = extreme
       selector:
         number:
           max: 4
           min: 1
           step: 1.0
       default: 1
+    show_details:
+      name: Show warning details
+      description: Append the official description after the time range when available.
+      selector:
+        boolean: {}
+      default: false
     message_repeat:
       name: Warning repeat 🔄
       description: How often should the warning message be repeated on screen.
@@ -62,92 +87,108 @@ blueprint:
           max: 10
           step: 1.0
       default: 2
+    send_on_change_only:
+      name: Show only when warnings change
+      description: Skip publishing identical warning and preliminary warning payloads.
+      selector:
+        boolean: {}
+      default: false
+    play_beep:
+      name: Play beep on new warning
+      description: Enable to send an RTTTL tone with the MQTT payload.
+      selector:
+        boolean: {}
+      default: false
+    beep_rtttl:
+      name: RTTTL melody
+      description: Custom RTTTL string that will be played when the beep option is enabled.
+      default: Beep:d=16,o=5,b=180:c6
+      selector:
+        text: {}
+    full_day_names:
+      name: Full weekday names
+      description: Enable to display the day name in full (e.g. Sonntag instead of So).
+      selector:
+        boolean: {}
+      default: false
     icon_fog:
       name: Icon for fog
-      description: 'This is the icon ID which maps to the warning type: `59`
-
-        ![](https://developer.lametric.com/content/apps/icon_thumbs/17055_icon_thumb.gif?v=1)'
+      description: |-
+        This is the icon ID which maps to the warning type: `59`
+        ![](https://developer.lametric.com/content/apps/icon_thumbs/17055_icon_thumb.gif?v=1)
       selector:
         text: {}
       default: ww-fog
-
     icon_frost:
       name: Icon for frost
-      description: 'This is the icon ID which maps to the warning type: `22,82`
-
-        ![](https://developer.lametric.com/content/apps/icon_thumbs/55543_icon_thumb.gif?v=1)'
+      description: |-
+        This is the icon ID which maps to the warning type: `22,82`
+        ![](https://developer.lametric.com/content/apps/icon_thumbs/55543_icon_thumb.gif?v=1)
       selector:
         text: {}
       default: ww-frost
-
     icon_thunderstorm:
       name: Icon for thunderstorms
-      description: 'This is the icon ID which maps to the warning type: `31,33,34,36,38,40,41,42,44,45,46,48,49,95,96`
-
-        ![](https://developer.lametric.com/content/apps/icon_thumbs/49299_icon_thumb.gif?v=4)'
+      description: |-
+        This is the icon ID which maps to the warning type:
+        `31,33,34,36,38,40,41,42,44,45,46,48,49,95,96`
+        ![](https://developer.lametric.com/content/apps/icon_thumbs/49299_icon_thumb.gif?v=4)
       selector:
         text: {}
       default: ww-thunderstorm
-
     icon_pouring:
       name: Icon for pouring rain
-      description: 'This is the default icon which maps to the warning type: `61,62,63,64,65,66`
-
-        ![](https://developer.lametric.com/content/apps/icon_thumbs/49300_icon_thumb.gif?v=1)'
+      description: |-
+        This is the default icon which maps to the warning type: `61,62,63,64,65,66`
+        ![](https://developer.lametric.com/content/apps/icon_thumbs/49300_icon_thumb.gif?v=1)
       selector:
         text: {}
       default: ww-pouring
-
     icon_snow:
       name: Icon for snow fall
-      description: 'This is the icon ID which maps to the warning type: `70,71,72,73,74,75,76`
-
-        ![](https://developer.lametric.com/content/apps/icon_thumbs/2289_icon_thumb.gif?v=1)'
+      description: |-
+        This is the icon ID which maps to the warning type: `70,71,72,73,74,75,76`
+        ![](https://developer.lametric.com/content/apps/icon_thumbs/2289_icon_thumb.gif?v=1)
       selector:
         text: {}
       default: ww-snow
-
     icon_radition:
       name: Icon for UV radiation/heat
-      description: 'This is the icon ID which maps to the warning type: `246,247,248`
-
-        ![](https://developer.lametric.com/content/apps/icon_thumbs/55544_icon_thumb.gif?v=1)'
+      description: |-
+        This is the icon ID which maps to the warning type: `246,247,248`
+        ![](https://developer.lametric.com/content/apps/icon_thumbs/55544_icon_thumb.gif?v=1)
       selector:
         text: {}
       default: ww-radiation
-
     icon_wind:
       name: Icon for wind
-      description: 'This is the icon ID which maps to the warning type: `51,52,53,54,55,56`
-
-        ![](https://developer.lametric.com/content/apps/icon_thumbs/3363_icon_thumb.gif?v=1)'
+      description: |-
+        This is the icon ID which maps to the warning type: `51,52,53,54,55,56`
+        ![](https://developer.lametric.com/content/apps/icon_thumbs/3363_icon_thumb.gif?v=1)
       selector:
         text: {}
       default: ww-wind
-
     icon_thaw:
       name: Icon for thaw
-      description: 'This is the icon ID which maps to the warning type: `88,89`
-
-        ![](https://developer.lametric.com/content/apps/icon_thumbs/22866_icon_thumb.gif?v=1)'
+      description: |-
+        This is the icon ID which maps to the warning type: `88,89`
+        ![](https://developer.lametric.com/content/apps/icon_thumbs/22866_icon_thumb.gif?v=1)
       selector:
         text: {}
       default: ww-thaw
-
     icon_blackice:
       name: Icon for black ice
-      description: 'This is the icon ID which maps to the warning type: `84,85,86,87`
-
-        ![](https://developer.lametric.com/content/apps/icon_thumbs/24231_icon_thumb.gif?v=1)'
+      description: |-
+        This is the icon ID which maps to the warning type: `84,85,86,87`
+        ![](https://developer.lametric.com/content/apps/icon_thumbs/24231_icon_thumb.gif?v=1)
       selector:
         text: {}
       default: ww-blackice
-
     icon_warning:
       name: Icon for other warnings
-      description: 'This is the icon ID which maps to any other warning type
-
-        ![](https://developer.lametric.com/content/apps/icon_thumbs/16754_icon_thumb.gif?v=1)'
+      description: |-
+        This is the icon ID which maps to any other warning type.
+        ![](https://developer.lametric.com/content/apps/icon_thumbs/16754_icon_thumb.gif?v=1)
       selector:
         text: {}
       default: ww-generic
@@ -155,11 +196,23 @@ mode: restart
 variables:
   device_ids: !input awtrix
   app_topic: jc-23
-  devices_topics: "{%- macro get_device_topic(device_id) %} {{ states((device_entities(device_id) | select('search','device_topic') | list)[0]) }} {%- endmacro %}\n{%- set ns = namespace(devices=[]) %} {%- for device_id in device_ids %}\n  {%- set device=get_device_topic(device_id)|replace('','') %}\n  {% set ns.devices = ns.devices + [ device ~ '/custom/' ~ app_topic] %}\n{%- endfor %} {{ ns.devices | reject('match','unavailable') | list}}"
+  devices_topics: |-
+    {%- macro get_device_topic(device_id) -%}
+      {{ states((device_entities(device_id) | select('search', 'device_topic') | list)[0]) }}
+    {%- endmacro -%}
+    {%- set ns = namespace(devices=[]) -%}
+    {%- for device_id in device_ids -%}
+      {%- set device = get_device_topic(device_id) | replace('', '') -%}
+      {%- set ns.devices = ns.devices + [device ~ '/custom/' ~ app_topic] -%}
+    {%- endfor -%}
+    {{ ns.devices | reject('match', 'unavailable') | list }}
   weather_warning_var: !input weather_warning_var
   weather_preliminary_warning_var: !input weather_preliminary_warning_var
   warning_level_to_show: !input warning_level
   message_repeat: !input message_repeat
+  send_on_change_only: !input send_on_change_only
+  play_beep: !input play_beep
+  beep_rtttl: !input beep_rtttl
   icon_frost: !input icon_frost
   icon_thunderstorm: !input icon_thunderstorm
   icon_pouring: !input icon_pouring
@@ -170,72 +223,219 @@ variables:
   icon_thaw: !input icon_thaw
   icon_radition: !input icon_radition
   icon_warning: !input icon_warning
-  warnings_count: '{{ state_attr(weather_warning_var,''warning_count'')|int }}'
-  preliminary_warnings_count: '{{ state_attr(weather_preliminary_warning_var,''warning_count'')|int }}'
-  warnings: "{%- macro warning_json(warning_entity, index, preliminary) %}
-      {%- set name = state_attr(warning_entity, 'warning_' ~ index ~ '_name') %}
-      {%- set type = state_attr(warning_entity, 'warning_' ~ index ~ '_type') %}
-      {%- set level = state_attr(warning_entity, 'warning_' ~ index ~ '_level') %}
-      {%- set start = state_attr(warning_entity, 'warning_' ~ index ~ '_start') |as_timestamp |timestamp_custom('%a %H:%M', local=true) %}
-      {%- set end = state_attr(warning_entity, 'warning_' ~ index ~ '_end') |as_timestamp |timestamp_custom('%a %H:%M', local=true)%}
-      {%- set start_localized = start |replace('Mon','Mo') |replace('Tue','Di') |replace('Wed','Mi') |replace('Thu','Do') |replace('Fri','Fr') |replace('Sat','Sa') |replace('Sun','So') %}
-      {%- set end_localized = end |replace('Mon','Mo') |replace('Tue','Di') |replace('Wed','Mi') |replace('Thu','Do') |replace('Fri','Fr') |replace('Sat','Sa') |replace('Sun','So') %}
-      {%- set color = state_attr(warning_entity, 'warning_' ~ index ~ '_color') %}
-      {{ '{ \"name\": \"' + name + '\", \"type\": ' ~ type ~ ', \"level\": ' ~ level ~ ', \"start\": \"' + start_localized + '\", \"end\": \"' + end_localized + '\", \"color\": \"' + color + '\", \"preliminary\": ' ~ preliminary ~ ' }' }}
-    {%- endmacro %}
-    {%- set warnings = namespace(index=[]) %}
-    {%- for i in range(warnings_count) %}
-      {%- if state_attr(weather_warning_var, 'warning_' ~ loop.index ~ '_level') >= warning_level_to_show|int %}
-        {%- set warning = warning_json(weather_warning_var, loop.index, 0)|from_json %}
-        {%- set warnings.index = warnings.index + [warning] %}
-      {%- endif %}
-    {%- endfor %}
-    {%- for i in range(preliminary_warnings_count) %}
-      {%- if state_attr(weather_preliminary_warning_var, 'warning_' ~ loop.index ~ '_level') >= warning_level_to_show|int %}
-        {%- set warning = warning_json(weather_preliminary_warning_var, loop.index, 1)|from_json %}
-        {%- set warnings.index = warnings.index + [warning] %}
-      {%- endif %}
-    {%- endfor %}
-    {{ warnings['index'] }}"
-  payload: "{%- macro warning_icon(warning_type) %}
-      {%- if warning_type in [22,82] %}{{ icon_frost }}
-      {%- elif warning_type in [31,33,34,36,38,40,41,42,44,45,46,48,49,95,96] %}{{ icon_thunderstorm }}
-      {%- elif warning_type in [51,52,53,54,55,56] %}{{ icon_wind }}
-      {%- elif warning_type == 59 %}{{ icon_fog }}
-      {%- elif warning_type in [61,62,63,64,65,66] %}{{ icon_pouring }}
-      {%- elif warning_type in [70,71,72,73,74,75,76] %}{{ icon_snow }}
-      {%- elif warning_type in [84,85,86,87] %}{{ icon_blackice }}
-      {%- elif warning_type in [88,89] %}{{ icon_thaw }}
-      {%- elif warning_type in [246,247,248] %}{{ icon_radition }}
-      {%- else %}{{ icon_warning }} 
-      {%- endif %}
-    {%- endmacro %}
-    {{ iif(warnings|length > 1, '[', '') }}
-    {%- for i in range(warnings|length) -%}
-      {\"icon\":\"{{ warning_icon(warnings[loop.index0]['type']) }}\", \"text\":\"{%- if warnings[loop.index0]['preliminary'] == 1 %}Vorwarn{%- else %}Warn{%- endif %}stufe {{ warnings[loop.index0]['level'] }}: {{ warnings[loop.index0]['name']|replace(\"VORABINFORMATION \", \"\") }}, {{ warnings[loop.index0]['start'] }} - {{ warnings[loop.index0]['end'] }}\", \"repeat\": {{ message_repeat }}, \"color\": \"{{ warnings[loop.index0]['color'] }}\", \"pushIcon\": 2}
-      {{ iif(warnings|length > 1 and loop.index < warnings|length, ',', '') }}
+  full_day_names: !input full_day_names
+  show_details: !input show_details
+  warnings_count: "{{ state_attr(weather_warning_var, 'warning_count') | int }}"
+  preliminary_warnings_count: >-
+    {{
+      0 if not weather_preliminary_warning_var
+      else state_attr(weather_preliminary_warning_var, 'warning_count') | int
+    }}
+  should_publish: >-
+    {% if not send_on_change_only %}
+      {{ true }}
+    {% elif trigger is not defined %}
+      {{ true }}
+    {% elif trigger.to_state is none %}
+      {{ false }}
+    {% elif trigger.from_state is none %}
+      {{ true }}
+    {% else %}
+      {% macro build_signature(attrs, severity, prefix) -%}
+        {%- set result = [] -%}
+        {%- set count = attrs.get('warning_count', 0) | int(0) -%}
+        {%- for idx in range(1, count + 1) -%}
+          {%- set level = attrs.get('warning_' ~ idx ~ '_level') -%}
+          {%- if level is not none and level | int(0) >= severity -%}
+            {%- set pieces = [
+              prefix,
+              level | int(0),
+              attrs.get('warning_' ~ idx ~ '_type'),
+              attrs.get('warning_' ~ idx ~ '_start'),
+              attrs.get('warning_' ~ idx ~ '_end'),
+              attrs.get('warning_' ~ idx ~ '_name'),
+              attrs.get('warning_' ~ idx ~ '_color'),
+              attrs.get('warning_' ~ idx ~ '_description') if show_details else ''
+            ] -%}
+            {%- set normalized = [] -%}
+            {%- for piece in pieces -%}
+              {%- set normalized = normalized + [piece | default('') | string] -%}
+            {%- endfor -%}
+            {%- set result = result + [normalized | join('~')] -%}
+          {%- endif -%}
+        {%- endfor -%}
+        {{ result | sort | join('||') }}
+      {%- endmacro %}
+      {% set severity = warning_level_to_show | int %}
+      {% set current = trigger.to_state.attributes %}
+      {% set previous = trigger.from_state.attributes %}
+      {% if trigger.entity_id == weather_warning_var %}
+        {{ build_signature(current, severity, 'warn') != build_signature(previous, severity, 'warn') }}
+      {% elif weather_preliminary_warning_var and trigger.entity_id == weather_preliminary_warning_var %}
+        {{ build_signature(current, severity, 'pre') != build_signature(previous, severity, 'pre') }}
+      {% else %}
+        {{ true }}
+      {% endif %}
+    {% endif %}
+  payload: |-
+    {%- set day_names = {
+      'Mon': ['Mo', 'Montag'],
+      'Tue': ['Di', 'Dienstag'],
+      'Wed': ['Mi', 'Mittwoch'],
+      'Thu': ['Do', 'Donnerstag'],
+      'Fri': ['Fr', 'Freitag'],
+      'Sat': ['Sa', 'Samstag'],
+      'Sun': ['So', 'Sonntag']
+    } -%}
+    {%- set day_index = 1 if full_day_names else 0 -%}
+    {%- set frames = namespace(items=[]) -%}
+    {%- macro warning_icon(warning_type) -%}
+      {%- if warning_type in [22, 82] -%}
+        {{ icon_frost }}
+      {%- elif warning_type in [31, 33, 34, 36, 38, 40, 41, 42, 44, 45, 46, 48, 49, 95, 96] -%}
+        {{ icon_thunderstorm }}
+      {%- elif warning_type in [51, 52, 53, 54, 55, 56] -%}
+        {{ icon_wind }}
+      {%- elif warning_type == 59 -%}
+        {{ icon_fog }}
+      {%- elif warning_type in [61, 62, 63, 64, 65, 66] -%}
+        {{ icon_pouring }}
+      {%- elif warning_type in [70, 71, 72, 73, 74, 75, 76] -%}
+        {{ icon_snow }}
+      {%- elif warning_type in [84, 85, 86, 87] -%}
+        {{ icon_blackice }}
+      {%- elif warning_type in [88, 89] -%}
+        {{ icon_thaw }}
+      {%- elif warning_type in [246, 247, 248] -%}
+        {{ icon_radition }}
+      {%- else -%}
+        {{ icon_warning }}
+      {%- endif -%}
+    {%- endmacro -%}
+    {%- for i in range(warnings_count) -%}
+      {%- set level = state_attr(weather_warning_var, 'warning_' ~ loop.index ~ '_level') -%}
+      {%- if level is not none and level >= warning_level_to_show | int -%}
+        {%- set name = state_attr(weather_warning_var, 'warning_' ~ loop.index ~ '_name') -%}
+        {%- set description = state_attr(weather_warning_var, 'warning_' ~ loop.index ~ '_description') -%}
+        {%- set description = state_attr(weather_warning_var, 'warning_' ~ loop.index ~ '_description') -%}
+        {%- set warning_type = state_attr(weather_warning_var, 'warning_' ~ loop.index ~ '_type') | int -%}
+        {%- set color = state_attr(weather_warning_var, 'warning_' ~ loop.index ~ '_color') -%}
+        {%- set start_ts = state_attr(weather_warning_var, 'warning_' ~ loop.index ~ '_start') | as_timestamp -%}
+        {%- set end_ts = state_attr(weather_warning_var, 'warning_' ~ loop.index ~ '_end') | as_timestamp -%}
+        {%- set start_day = start_ts | timestamp_custom('%a', local=true) -%}
+        {%- set end_day = end_ts | timestamp_custom('%a', local=true) -%}
+        {%- set start_time = start_ts | timestamp_custom('%H:%M', local=true) -%}
+        {%- set end_time = end_ts | timestamp_custom('%H:%M', local=true) -%}
+        {%- set start_label = day_names[start_day][day_index] if start_day in day_names else start_day -%}
+        {%- set end_label = day_names[end_day][day_index] if end_day in day_names else end_day -%}
+        {%- set prefix = 'Warn' -%}
+        {%- set name_clean = name | replace('VORABINFORMATION ', '') -%}
+        {%- set text = prefix ~ 'stufe ' ~ level ~ ': ' ~ name_clean
+          ~ ', ' ~ start_label ~ ' ' ~ start_time ~ ' Uhr - ' ~ end_label ~ ' ' ~ end_time ~ ' Uhr' -%}
+        {%- if show_details and description -%}
+          {%- set desc_clean = description | replace('\n', ' ') | regex_replace('\s+', ' ') | trim -%}
+          {%- if desc_clean -%}
+            {%- set text = (text ~ ' : ' ~ desc_clean) | truncate(320, True, '…') -%}
+          {%- endif -%}
+        {%- endif -%}
+        {%- set frame = {
+          'icon': warning_icon(warning_type),
+          'text': text,
+          'repeat': message_repeat | int,
+          'lifetime': 1,
+          'color': color,
+          'pushIcon': 2
+        } -%}
+        {%- if play_beep and frames.items | length == 0 -%}
+          {%- set frame = frame | combine({'rtttl': beep_rtttl}) -%}
+        {%- endif -%}
+        {%- set frames.items = frames.items + [frame] -%}
+      {%- endif -%}
     {%- endfor -%}
-    {{ iif(warnings|length > 1, ']', '') }}"
+    {%- if weather_preliminary_warning_var -%}
+      {%- for i in range(preliminary_warnings_count) -%}
+        {%- set level = state_attr(weather_preliminary_warning_var, 'warning_' ~ loop.index ~ '_level') -%}
+        {%- if level is not none and level >= warning_level_to_show | int -%}
+          {%- set name = state_attr(weather_preliminary_warning_var, 'warning_' ~ loop.index ~ '_name') -%}
+          {%- set description = state_attr(weather_preliminary_warning_var, 'warning_' ~ loop.index ~ '_description') -%}
+          {%- set warning_type = state_attr(weather_preliminary_warning_var, 'warning_' ~ loop.index ~ '_type') | int -%}
+          {%- set color = state_attr(weather_preliminary_warning_var, 'warning_' ~ loop.index ~ '_color') -%}
+          {%- set start_ts = state_attr(weather_preliminary_warning_var, 'warning_' ~ loop.index ~ '_start') | as_timestamp -%}
+          {%- set end_ts = state_attr(weather_preliminary_warning_var, 'warning_' ~ loop.index ~ '_end') | as_timestamp -%}
+          {%- set start_day = start_ts | timestamp_custom('%a', local=true) -%}
+          {%- set end_day = end_ts | timestamp_custom('%a', local=true) -%}
+          {%- set start_time = start_ts | timestamp_custom('%H:%M', local=true) -%}
+          {%- set end_time = end_ts | timestamp_custom('%H:%M', local=true) -%}
+          {%- set start_label = day_names[start_day][day_index] if start_day in day_names else start_day -%}
+          {%- set end_label = day_names[end_day][day_index] if end_day in day_names else end_day -%}
+          {%- set prefix = 'Vorwarn' -%}
+          {%- set name_clean = name | replace('VORABINFORMATION ', '') -%}
+          {%- set text = prefix ~ 'stufe ' ~ level ~ ': ' ~ name_clean
+            ~ ', ' ~ start_label ~ ' ' ~ start_time ~ ' Uhr - ' ~ end_label ~ ' ' ~ end_time ~ ' Uhr' -%}
+          {%- if show_details and description -%}
+            {%- set desc_clean = description | replace('\n', ' ') | regex_replace('\s+', ' ') | trim -%}
+            {%- if desc_clean -%}
+              {%- set text = (text ~ ' : ' ~ desc_clean) | truncate(320, True, '…') -%}
+            {%- endif -%}
+          {%- endif -%}
+          {%- set frame = {
+            'icon': warning_icon(warning_type),
+            'text': text,
+            'repeat': message_repeat | int,
+            'lifetime': 1,
+            'color': color,
+            'pushIcon': 2
+          } -%}
+          {%- if play_beep and frames.items | length == 0 -%}
+            {%- set frame = frame | combine({'rtttl': beep_rtttl}) -%}
+          {%- endif -%}
+          {%- set frames.items = frames.items + [frame] -%}
+        {%- endif -%}
+      {%- endfor -%}
+    {%- endif -%}
+    {%- if frames.items | length == 0 -%}
+      ''
+    {%- elif frames.items | length == 1 -%}
+      {{ frames.items[0] | tojson }}
+    {%- else -%}
+      {{ frames.items | tojson }}
+    {%- endif -%}
 
 triggers:
-- trigger: state
-  entity_id: !input weather_warning_var
-  id: Changes
-  enabled: true
+  - trigger: state
+    entity_id: !input weather_warning_var
+    id: Changes
+    enabled: true
 conditions: []
 actions:
-- repeat:
-    for_each: '{{ devices_topics }}'
-    sequence:
-    - action: mqtt.publish
-      data:
-        qos: 0
-        retain: false
-        topic: '{{ repeat.item }}'
-        payload: ''
-    - action: mqtt.publish
-      data:
-        qos: 0
-        retain: false
-        topic: '{{ repeat.item }}'
-        payload: '{{payload}}'
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ should_publish }}"
+        sequence:
+          - repeat:
+              for_each: "{{ devices_topics }}"
+              sequence:
+                - action: mqtt.publish
+                  data:
+                    qos: 0
+                    retain: false
+                    topic: "{{ repeat.item }}"
+                    payload: ''
+                - choose:
+                    - conditions:
+                        - condition: template
+                          value_template: "{{ play_beep and payload != '' }}"
+                      sequence:
+                        - action: mqtt.publish
+                          data:
+                            qos: 0
+                            retain: false
+                            topic: "{{ repeat.item | replace('/custom/' ~ app_topic, '/rtttl') }}"
+                            payload: "{{ beep_rtttl }}"
+                - action: mqtt.publish
+                  data:
+                    qos: 0
+                    retain: false
+                    topic: "{{ repeat.item }}"
+                    payload: "{{ payload }}"
