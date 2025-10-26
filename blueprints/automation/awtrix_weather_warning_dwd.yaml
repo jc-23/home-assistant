@@ -369,7 +369,6 @@ variables:
           'repeat': message_repeat | int,
           'lifetime': 1,
           'color': color,
-          'pushIcon': 2
         } -%}
         {%- if play_beep and frames.items | length == 0 -%}
           {%- set frame = frame | combine({'rtttl': beep_rtttl}) -%}
@@ -410,7 +409,6 @@ variables:
             'repeat': message_repeat | int,
             'lifetime': 1,
             'color': color,
-            'pushIcon': 2
           } -%}
           {%- if play_beep and frames.items | length == 0 -%}
             {%- set frame = frame | combine({'rtttl': beep_rtttl}) -%}
