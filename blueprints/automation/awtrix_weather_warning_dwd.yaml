@@ -111,6 +111,20 @@ blueprint:
       selector:
         boolean: {}
       default: false
+    icons_behavior:
+      name: The behavior for the icons
+      description: |-
+        This option defines how the icons behave on the AWTRIX display.
+        - "Don't move": Icon doesn't move
+        - "Move with text once": Icon moves with text and will not appear again
+        - "Move with text": Icon moves with text but appears again when the text starts to scroll again.
+      selector:
+        select:
+          options:
+            - "Don't move"
+            - "Move with text once"
+            - "Move with text"
+      default: "Move with text"
     icon_fog:
       name: Icon for fog
       description: |-
@@ -210,6 +224,7 @@ variables:
   weather_preliminary_warning_var: !input weather_preliminary_warning_var
   warning_level_to_show: !input warning_level
   message_repeat: !input message_repeat
+  icons_behavior: !input icons_behavior
   send_on_change_only: !input send_on_change_only
   play_beep: !input play_beep
   beep_rtttl: !input beep_rtttl
@@ -312,6 +327,15 @@ variables:
         {{ icon_warning }}
       {%- endif -%}
     {%- endmacro -%}
+    {%- macro push_icon(icons_behavior) -%}
+      {%- if icons_behavior == "Don't move" -%}
+        0
+      {%- elif icons_behavior == "Move with text once" -%}
+        1
+      {%- else -%}
+        2
+      {%- endif -%}
+    {%- endmacro -%}
     {%- for i in range(warnings_count) -%}
       {%- set level = state_attr(weather_warning_var, 'warning_' ~ loop.index ~ '_level') -%}
       {%- if level is not none and level >= warning_level_to_show | int -%}
@@ -340,6 +364,7 @@ variables:
         {%- endif -%}
         {%- set frame = {
           'icon': warning_icon(warning_type),
+          'pushIcon': push_icon(icons_behavior),
           'text': text,
           'repeat': message_repeat | int,
           'lifetime': 1,
@@ -380,6 +405,7 @@ variables:
           {%- endif -%}
           {%- set frame = {
             'icon': warning_icon(warning_type),
+            'pushIcon': push_icon(icons_behavior),
             'text': text,
             'repeat': message_repeat | int,
             'lifetime': 1,
