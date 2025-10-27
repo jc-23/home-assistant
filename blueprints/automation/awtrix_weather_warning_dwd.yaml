@@ -367,7 +367,6 @@ variables:
           'pushIcon': push_icon(icons_behavior),
           'text': text,
           'repeat': message_repeat | int,
-          'lifetime': 1,
           'color': color,
         } -%}
         {%- if play_beep and frames.items | length == 0 -%}
@@ -407,7 +406,6 @@ variables:
             'pushIcon': push_icon(icons_behavior),
             'text': text,
             'repeat': message_repeat | int,
-            'lifetime': 1,
             'color': color,
           } -%}
           {%- if play_beep and frames.items | length == 0 -%}
