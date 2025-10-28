@@ -364,7 +364,7 @@ variables:
         {%- endif -%}
         {%- set frame = {
           'icon': warning_icon(warning_type),
-          'pushIcon': push_icon(icons_behavior),
+          'pushIcon': push_icon(icons_behavior) | int,
           'text': text,
           'repeat': message_repeat | int,
           'color': color,
@@ -403,7 +403,7 @@ variables:
           {%- endif -%}
           {%- set frame = {
             'icon': warning_icon(warning_type),
-            'pushIcon': push_icon(icons_behavior),
+            'pushIcon': push_icon(icons_behavior) | int,
             'text': text,
             'repeat': message_repeat | int,
             'color': color,
