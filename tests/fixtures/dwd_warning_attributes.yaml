@@ -1,0 +1,44 @@
+---
+region_name: Gemeinde ABC
+region_id: 123456789
+last_update: "2026-08-05T12:02:26.239000+00:00"
+warning_count: 1
+warning_1_name: STARKE HITZE
+warning_1_type: 247
+warning_1_level: 1
+warning_1_headline: Amtliche WARNUNG vor HITZE
+warning_1_description: |
+
+  Am Mittwoch wird eine starke Wärmebelastung erwartet.
+
+  Heute ist der 3. Tag der Warnsituation in Folge.
+warning_1_instruction: >-
+  Hitzebelastung kann für den menschlichen Körper gefährlich werden und zu einer
+  Vielzahl von gesundheitlichen Problemen führen. Vermeiden Sie nach Möglichkeit
+  die Hitze, trinken Sie ausreichend Wasser und halten Sie die Innenräume kühl.
+warning_1_start: "2026-08-05T09:00:00+00:00"
+warning_1_end: "2026-08-05T17:00:00+00:00"
+warning_1_parameters: null
+warning_1_color: "#cc99ff"
+warning_1:
+  start_time: "2026-08-05T09:00:00+00:00"
+  end_time: "2026-08-05T17:00:00+00:00"
+  event: STARKE HITZE
+  event_code: 247
+  headline: Amtliche WARNUNG vor HITZE
+  description: |
+
+    Am Mittwoch wird eine starke Wärmebelastung erwartet.
+
+    Heute ist der 3. Tag der Warnsituation in Folge.
+  instruction: >-
+    Hitzebelastung kann für den menschlichen Körper gefährlich werden und zu
+    einer Vielzahl von gesundheitlichen Problemen führen. Vermeiden Sie nach
+    Möglichkeit die Hitze, trinken Sie ausreichend Wasser und halten Sie die
+    Innenräume kühl.
+  urgency: immediate
+  level: 1
+  parameters: null
+  color: "#cc99ff"
+attribution: Data provided by DWD
+friendly_name: Gemeinde ABC Aktuelle Warnstufe

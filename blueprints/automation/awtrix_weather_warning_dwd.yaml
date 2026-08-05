@@ -1,7 +1,7 @@
 # yamllint disable rule:line-length
 ---
 blueprint:
-  name: "AWTRIX DWD weather warnings ⛈️"
+  name: "AWTRIX 3 DWD weather warnings ⛈️"
   description: |-
     Show weather warnings issued by DWD on your AWTRIX device.
 
@@ -9,20 +9,21 @@ blueprint:
     You MUST upload the warning icons to your AWTRIX device before using this
     blueprint.
 
-    Run the upload script:
-      bash -c "$(curl -fsSL https://raw.githubusercontent.com/jc-23/home-assistant/master/icons/upload_icon.sh)"
-
-    Provide the clock address when needed:
-      bash -c "$(curl -fsSL https://raw.githubusercontent.com/jc-23/home-assistant/master/icons/upload_icon.sh)" -- IP_ADDRESS_OF_CLOCK
+    Download and run the upload script:
+      curl -fsSLO https://raw.githubusercontent.com/jc-23/home-assistant/main/icons/upload_icon.sh
+      bash upload_icon.sh CLOCK_HOST_OR_IP
 
     A legend for the warning types is available at:
       https://www.dwd.de/DE/leistungen/opendata/help/warnungen/warning_codes_pdf.pdf?__blob=publicationFile&v=5
 
     Updates for this blueprint:
-      https://raw.githubusercontent.com/jc-23/home-assistant/master/blueprints/automation/awtrix_weather_warning_dwd.yaml
+      https://raw.githubusercontent.com/jc-23/home-assistant/main/blueprints/automation/awtrix_weather_warning_dwd.yaml
 
     Credits go to Jeef for the original AWTRIX Weather blueprint.
   domain: automation
+  author: JC-23
+  homeassistant:
+    min_version: 2024.10.0
   input:
     awtrix:
       name: AWTRIX Device
@@ -31,8 +32,8 @@ blueprint:
         device:
           filter:
             - integration: mqtt
-            - manufacturer: Blueforcer
-            - model: AWTRIX 3
+              manufacturer: Blueforcer
+              model: AWTRIX 3
           multiple: true
     weather_warning_var:
       name: DWD weather warning sensor
@@ -43,8 +44,8 @@ blueprint:
       selector:
         entity:
           filter:
-            - domain:
-                - sensor
+            - integration: dwd_weather_warnings
+              domain: sensor
           multiple: false
     weather_preliminary_warning_var:
       name: DWD preliminary weather warning sensor
@@ -52,12 +53,12 @@ blueprint:
         Select the sensor that provides
         [Deutscher Wetterdienst (DWD) Preliminary Weather Warnings](https://www.home-assistant.io/integrations/dwd_weather_warnings/)
         integration.
-      default: ~
+      default: ""
       selector:
         entity:
           filter:
-            - domain:
-                - sensor
+            - integration: dwd_weather_warnings
+              domain: sensor
           multiple: false
     warning_level:
       name: Show warnings for severity level (and above)
@@ -211,15 +212,17 @@ variables:
   device_ids: !input awtrix
   app_topic: jc-23
   devices_topics: |-
-    {%- macro get_device_topic(device_id) -%}
-      {{ states((device_entities(device_id) | select('search', 'device_topic') | list)[0]) }}
-    {%- endmacro -%}
     {%- set ns = namespace(devices=[]) -%}
     {%- for device_id in device_ids -%}
-      {%- set device = get_device_topic(device_id) | replace('', '') -%}
-      {%- set ns.devices = ns.devices + [device ~ '/custom/' ~ app_topic] -%}
+      {%- set device_topic_entities = device_entities(device_id) | select('search', 'device_topic') | list -%}
+      {%- if device_topic_entities | length > 0 -%}
+        {%- set device = states(device_topic_entities | first) -%}
+        {%- if device not in ['unknown', 'unavailable', 'none', ''] -%}
+          {%- set ns.devices = ns.devices + [device ~ '/custom/' ~ app_topic] -%}
+        {%- endif -%}
+      {%- endif -%}
     {%- endfor -%}
-    {{ ns.devices | reject('match', 'unavailable') | list }}
+    {{ ns.devices }}
   weather_warning_var: !input weather_warning_var
   weather_preliminary_warning_var: !input weather_preliminary_warning_var
   warning_level_to_show: !input warning_level
@@ -247,49 +250,97 @@ variables:
       else state_attr(weather_preliminary_warning_var, 'warning_count') | int
     }}
   should_publish: >-
+    {% macro build_signature(attrs, severity, prefix) -%}
+      {%- set result = namespace(items=[]) -%}
+      {%- set count = attrs.get('warning_count', 0) | int(0) -%}
+      {%- for idx in range(1, count + 1) -%}
+        {%- set level = attrs.get('warning_' ~ idx ~ '_level') -%}
+        {%- if level is not none and level | int(0) >= severity -%}
+          {%- set pieces = [
+            prefix,
+            level | int(0),
+            attrs.get('warning_' ~ idx ~ '_type'),
+            attrs.get('warning_' ~ idx ~ '_start'),
+            attrs.get('warning_' ~ idx ~ '_end'),
+            attrs.get('warning_' ~ idx ~ '_name'),
+            attrs.get('warning_' ~ idx ~ '_color'),
+            attrs.get('warning_' ~ idx ~ '_description') if show_details else ''
+          ] -%}
+          {%- set normalized = namespace(items=[]) -%}
+          {%- for piece in pieces -%}
+            {%- set normalized.items = normalized.items + [piece | default('', true) | string] -%}
+          {%- endfor -%}
+          {%- set result.items = result.items + [normalized.items | join('~')] -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {{ result.items | sort | join('||') }}
+    {%- endmacro %}
     {% if not send_on_change_only %}
       {{ true }}
-    {% elif trigger is not defined %}
-      {{ true }}
-    {% elif trigger.to_state is none %}
-      {{ false }}
-    {% elif trigger.from_state is none %}
+    {% elif trigger is not defined or trigger.id in ['startup', 'refresh'] %}
       {{ true }}
     {% else %}
-      {% macro build_signature(attrs, severity, prefix) -%}
-        {%- set result = [] -%}
-        {%- set count = attrs.get('warning_count', 0) | int(0) -%}
-        {%- for idx in range(1, count + 1) -%}
-          {%- set level = attrs.get('warning_' ~ idx ~ '_level') -%}
-          {%- if level is not none and level | int(0) >= severity -%}
-            {%- set pieces = [
-              prefix,
-              level | int(0),
-              attrs.get('warning_' ~ idx ~ '_type'),
-              attrs.get('warning_' ~ idx ~ '_start'),
-              attrs.get('warning_' ~ idx ~ '_end'),
-              attrs.get('warning_' ~ idx ~ '_name'),
-              attrs.get('warning_' ~ idx ~ '_color'),
-              attrs.get('warning_' ~ idx ~ '_description') if show_details else ''
-            ] -%}
-            {%- set normalized = [] -%}
-            {%- for piece in pieces -%}
-              {%- set normalized = normalized + [piece | default('') | string] -%}
+      {% if trigger.id == 'preliminary_changed' %}
+        {% set current_state = trigger.event.data.new_state %}
+        {% set previous_state = trigger.event.data.old_state %}
+      {% else %}
+        {% set current_state = trigger.to_state if trigger.to_state is defined else none %}
+        {% set previous_state = trigger.from_state if trigger.from_state is defined else none %}
+      {% endif %}
+      {% if current_state is none %}
+        {{ false }}
+      {% elif previous_state is none %}
+        {{ true }}
+      {% else %}
+        {% set prefix = 'pre' if trigger.id == 'preliminary_changed' else 'warn' %}
+        {{ build_signature(current_state.attributes, warning_level_to_show | int, prefix) != build_signature(previous_state.attributes, warning_level_to_show | int, prefix) }}
+      {% endif %}
+    {% endif %}
+  should_beep: >-
+    {% if not play_beep or trigger is not defined %}
+      {{ false }}
+    {% elif trigger.id not in ['warning_changed', 'preliminary_changed'] %}
+      {{ false }}
+    {% else %}
+      {% macro contains_new_or_escalated_warning(current, previous, severity) -%}
+        {%- set result = namespace(beep=false) -%}
+        {%- set current_count = current.get('warning_count', 0) | int(0) -%}
+        {%- set previous_count = previous.get('warning_count', 0) | int(0) -%}
+        {%- for current_idx in range(1, current_count + 1) -%}
+          {%- set current_level = current.get('warning_' ~ current_idx ~ '_level') | int(0) -%}
+          {%- if current_level >= severity -%}
+            {%- set match = namespace(found=false, level=0) -%}
+            {%- set current_type = current.get('warning_' ~ current_idx ~ '_type') | int(0) -%}
+            {%- set current_name = current.get('warning_' ~ current_idx ~ '_name') | default('', true) -%}
+            {%- set current_start = current.get('warning_' ~ current_idx ~ '_start') | default('', true) -%}
+            {%- for previous_idx in range(1, previous_count + 1) -%}
+              {%- set previous_type = previous.get('warning_' ~ previous_idx ~ '_type') | int(0) -%}
+              {%- set previous_name = previous.get('warning_' ~ previous_idx ~ '_name') | default('', true) -%}
+              {%- set previous_start = previous.get('warning_' ~ previous_idx ~ '_start') | default('', true) -%}
+              {%- if current_type == previous_type and current_name == previous_name and current_start == previous_start -%}
+                {%- set match.found = true -%}
+                {%- set match.level = [match.level, previous.get('warning_' ~ previous_idx ~ '_level') | int(0)] | max -%}
+              {%- endif -%}
             {%- endfor -%}
-            {%- set result = result + [normalized | join('~')] -%}
+            {%- if not match.found or current_level > match.level -%}
+              {%- set result.beep = true -%}
+            {%- endif -%}
           {%- endif -%}
         {%- endfor -%}
-        {{ result | sort | join('||') }}
+        {{ result.beep }}
       {%- endmacro %}
-      {% set severity = warning_level_to_show | int %}
-      {% set current = trigger.to_state.attributes %}
-      {% set previous = trigger.from_state.attributes %}
-      {% if trigger.entity_id == weather_warning_var %}
-        {{ build_signature(current, severity, 'warn') != build_signature(previous, severity, 'warn') }}
-      {% elif weather_preliminary_warning_var and trigger.entity_id == weather_preliminary_warning_var %}
-        {{ build_signature(current, severity, 'pre') != build_signature(previous, severity, 'pre') }}
+      {% if trigger.id == 'preliminary_changed' %}
+        {% set current_state = trigger.event.data.new_state %}
+        {% set previous_state = trigger.event.data.old_state %}
       {% else %}
-        {{ true }}
+        {% set current_state = trigger.to_state if trigger.to_state is defined else none %}
+        {% set previous_state = trigger.from_state if trigger.from_state is defined else none %}
+      {% endif %}
+      {% if current_state is none %}
+        {{ false }}
+      {% else %}
+        {% set previous = previous_state.attributes if previous_state is not none else {} %}
+        {{ contains_new_or_escalated_warning(current_state.attributes, previous, warning_level_to_show | int) }}
       {% endif %}
     {% endif %}
   payload: |-
@@ -341,7 +392,6 @@ variables:
       {%- if level is not none and level >= warning_level_to_show | int -%}
         {%- set name = state_attr(weather_warning_var, 'warning_' ~ loop.index ~ '_name') -%}
         {%- set description = state_attr(weather_warning_var, 'warning_' ~ loop.index ~ '_description') -%}
-        {%- set description = state_attr(weather_warning_var, 'warning_' ~ loop.index ~ '_description') -%}
         {%- set warning_type = state_attr(weather_warning_var, 'warning_' ~ loop.index ~ '_type') | int -%}
         {%- set color = state_attr(weather_warning_var, 'warning_' ~ loop.index ~ '_color') -%}
         {%- set start_ts = state_attr(weather_warning_var, 'warning_' ~ loop.index ~ '_start') | as_timestamp -%}
@@ -357,7 +407,7 @@ variables:
         {%- set text = prefix ~ 'stufe ' ~ level ~ ': ' ~ name_clean
           ~ ', ' ~ start_label ~ ' ' ~ start_time ~ ' Uhr - ' ~ end_label ~ ' ' ~ end_time ~ ' Uhr' -%}
         {%- if show_details and description -%}
-          {%- set desc_clean = description | replace('\n', ' ') | regex_replace('\s+', ' ') | trim -%}
+          {%- set desc_clean = description | replace('\n', ' ') | regex_replace('\\s+', ' ') | trim -%}
           {%- if desc_clean -%}
             {%- set text = (text ~ ' : ' ~ desc_clean) | truncate(320, True, '…') -%}
           {%- endif -%}
@@ -369,9 +419,6 @@ variables:
           'repeat': message_repeat | int,
           'color': color,
         } -%}
-        {%- if play_beep and frames.items | length == 0 -%}
-          {%- set frame = frame | combine({'rtttl': beep_rtttl}) -%}
-        {%- endif -%}
         {%- set frames.items = frames.items + [frame] -%}
       {%- endif -%}
     {%- endfor -%}
@@ -396,7 +443,7 @@ variables:
           {%- set text = prefix ~ 'stufe ' ~ level ~ ': ' ~ name_clean
             ~ ', ' ~ start_label ~ ' ' ~ start_time ~ ' Uhr - ' ~ end_label ~ ' ' ~ end_time ~ ' Uhr' -%}
           {%- if show_details and description -%}
-            {%- set desc_clean = description | replace('\n', ' ') | regex_replace('\s+', ' ') | trim -%}
+            {%- set desc_clean = description | replace('\n', ' ') | regex_replace('\\s+', ' ') | trim -%}
             {%- if desc_clean -%}
               {%- set text = (text ~ ' : ' ~ desc_clean) | truncate(320, True, '…') -%}
             {%- endif -%}
@@ -408,15 +455,12 @@ variables:
             'repeat': message_repeat | int,
             'color': color,
           } -%}
-          {%- if play_beep and frames.items | length == 0 -%}
-            {%- set frame = frame | combine({'rtttl': beep_rtttl}) -%}
-          {%- endif -%}
           {%- set frames.items = frames.items + [frame] -%}
         {%- endif -%}
       {%- endfor -%}
     {%- endif -%}
     {%- if frames.items | length == 0 -%}
-      ''
+      {{ '' }}
     {%- elif frames.items | length == 1 -%}
       {{ frames.items[0] | tojson }}
     {%- else -%}
@@ -426,8 +470,18 @@ variables:
 triggers:
   - trigger: state
     entity_id: !input weather_warning_var
-    id: Changes
-    enabled: true
+    id: warning_changed
+  - trigger: event
+    event_type: state_changed
+    event_data:
+      entity_id: !input weather_preliminary_warning_var
+    id: preliminary_changed
+  - trigger: homeassistant
+    event: start
+    id: startup
+  - trigger: time_pattern
+    minutes: "/15"
+    id: refresh
 conditions: []
 actions:
   - choose:
@@ -447,7 +501,7 @@ actions:
                 - choose:
                     - conditions:
                         - condition: template
-                          value_template: "{{ play_beep and payload != '' }}"
+                          value_template: "{{ should_beep and payload != '' }}"
                       sequence:
                         - action: mqtt.publish
                           data:
