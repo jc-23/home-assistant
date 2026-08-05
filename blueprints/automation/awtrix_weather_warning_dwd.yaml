@@ -3,7 +3,12 @@
 blueprint:
   name: "AWTRIX 3 DWD weather warnings ⛈️"
   description: |-
+    **Blueprint version: 2.0.0**
+
     Show weather warnings issued by DWD on your AWTRIX device.
+
+    When upgrading from an earlier unversioned release, restart AWTRIX once to
+    remove the former `jc-23` app after this blueprint publishes `dwd-warnings`.
 
     ## ⚠️ REQUIREMENTS ⚠️
     You MUST upload the warning icons to your AWTRIX device before using this
@@ -36,30 +41,32 @@ blueprint:
               model: AWTRIX 3
           multiple: true
     weather_warning_var:
-      name: DWD weather warning sensor
+      name: DWD weather warning sensors
       description: >-
-        Select the sensor that provides
+        Select one or more current-warning sensors provided by the
         [Deutscher Wetterdienst (DWD) Weather Warnings](https://www.home-assistant.io/integrations/dwd_weather_warnings/)
-        integration.
+        integration. When the selection contains multiple regions, their
+        shortened names are added to the displayed warnings.
       selector:
         entity:
           filter:
             - integration: dwd_weather_warnings
               domain: sensor
-          multiple: false
+          multiple: true
     weather_preliminary_warning_var:
-      name: DWD preliminary weather warning sensor
+      name: DWD preliminary weather warning sensors
       description: >-
-        Select the sensor that provides
+        Optionally select one or more sensors provided by the
         [Deutscher Wetterdienst (DWD) Preliminary Weather Warnings](https://www.home-assistant.io/integrations/dwd_weather_warnings/)
-        integration.
-      default: ""
+        integration. Current and preliminary sensors for the same region count
+        as one region.
+      default: []
       selector:
         entity:
           filter:
             - integration: dwd_weather_warnings
               domain: sensor
-          multiple: false
+          multiple: true
     warning_level:
       name: Show warnings for severity level (and above)
       description: |-
@@ -210,7 +217,7 @@ blueprint:
 mode: restart
 variables:
   device_ids: !input awtrix
-  app_topic: jc-23
+  app_topic: dwd-warnings
   devices_topics: |-
     {%- set ns = namespace(devices=[]) -%}
     {%- for device_id in device_ids -%}
@@ -223,8 +230,30 @@ variables:
       {%- endif -%}
     {%- endfor -%}
     {{ ns.devices }}
-  weather_warning_var: !input weather_warning_var
-  weather_preliminary_warning_var: !input weather_preliminary_warning_var
+  weather_warning_input: !input weather_warning_var
+  weather_warning_vars: >-
+    {{ [weather_warning_input] if weather_warning_input is string else weather_warning_input }}
+  weather_preliminary_warning_input: !input weather_preliminary_warning_var
+  weather_preliminary_warning_vars: >-
+    {{
+      [] if weather_preliminary_warning_input in [none, '']
+      else [weather_preliminary_warning_input]
+        if weather_preliminary_warning_input is string
+      else weather_preliminary_warning_input
+    }}
+  all_weather_warning_vars: >-
+    {{ weather_warning_vars + weather_preliminary_warning_vars }}
+  region_names: >-
+    {%- set result = namespace(items=[]) -%}
+    {%- for entity_id in all_weather_warning_vars -%}
+      {%- set region_name = state_attr(entity_id, 'region_name') | default('', true)
+        | regex_replace('^(Gemeinde|Stadt|Hansestadt)\\s+', '') | trim -%}
+      {%- if region_name and region_name not in result.items -%}
+        {%- set result.items = result.items + [region_name] -%}
+      {%- endif -%}
+    {%- endfor -%}
+    {{ result.items }}
+  show_region_name: "{{ region_names | length > 1 }}"
   warning_level_to_show: !input warning_level
   message_repeat: !input message_repeat
   icons_behavior: !input icons_behavior
@@ -243,12 +272,6 @@ variables:
   icon_warning: !input icon_warning
   full_day_names: !input full_day_names
   show_details: !input show_details
-  warnings_count: "{{ state_attr(weather_warning_var, 'warning_count') | int }}"
-  preliminary_warnings_count: >-
-    {{
-      0 if not weather_preliminary_warning_var
-      else state_attr(weather_preliminary_warning_var, 'warning_count') | int
-    }}
   should_publish: >-
     {% macro build_signature(attrs, severity, prefix) -%}
       {%- set result = namespace(items=[]) -%}
@@ -258,6 +281,7 @@ variables:
         {%- if level is not none and level | int(0) >= severity -%}
           {%- set pieces = [
             prefix,
+            attrs.get('region_name'),
             level | int(0),
             attrs.get('warning_' ~ idx ~ '_type'),
             attrs.get('warning_' ~ idx ~ '_start'),
@@ -279,27 +303,20 @@ variables:
       {{ true }}
     {% elif trigger is not defined or trigger.id in ['startup', 'refresh'] %}
       {{ true }}
+    {% elif trigger.to_state is not defined or trigger.to_state is none %}
+      {{ false }}
+    {% elif trigger.from_state is not defined or trigger.from_state is none %}
+      {{ true }}
     {% else %}
-      {% if trigger.id == 'preliminary_changed' %}
-        {% set current_state = trigger.event.data.new_state %}
-        {% set previous_state = trigger.event.data.old_state %}
-      {% else %}
-        {% set current_state = trigger.to_state if trigger.to_state is defined else none %}
-        {% set previous_state = trigger.from_state if trigger.from_state is defined else none %}
-      {% endif %}
-      {% if current_state is none %}
-        {{ false }}
-      {% elif previous_state is none %}
-        {{ true }}
-      {% else %}
-        {% set prefix = 'pre' if trigger.id == 'preliminary_changed' else 'warn' %}
-        {{ build_signature(current_state.attributes, warning_level_to_show | int, prefix) != build_signature(previous_state.attributes, warning_level_to_show | int, prefix) }}
-      {% endif %}
+      {% set prefix = 'pre' if trigger.id == 'preliminary_changed' else 'warn' %}
+      {{ build_signature(trigger.to_state.attributes, warning_level_to_show | int, prefix) != build_signature(trigger.from_state.attributes, warning_level_to_show | int, prefix) }}
     {% endif %}
   should_beep: >-
     {% if not play_beep or trigger is not defined %}
       {{ false }}
     {% elif trigger.id not in ['warning_changed', 'preliminary_changed'] %}
+      {{ false }}
+    {% elif trigger.to_state is not defined or trigger.to_state is none %}
       {{ false }}
     {% else %}
       {% macro contains_new_or_escalated_warning(current, previous, severity) -%}
@@ -329,19 +346,8 @@ variables:
         {%- endfor -%}
         {{ result.beep }}
       {%- endmacro %}
-      {% if trigger.id == 'preliminary_changed' %}
-        {% set current_state = trigger.event.data.new_state %}
-        {% set previous_state = trigger.event.data.old_state %}
-      {% else %}
-        {% set current_state = trigger.to_state if trigger.to_state is defined else none %}
-        {% set previous_state = trigger.from_state if trigger.from_state is defined else none %}
-      {% endif %}
-      {% if current_state is none %}
-        {{ false }}
-      {% else %}
-        {% set previous = previous_state.attributes if previous_state is not none else {} %}
-        {{ contains_new_or_escalated_warning(current_state.attributes, previous, warning_level_to_show | int) }}
-      {% endif %}
+      {% set previous = trigger.from_state.attributes if trigger.from_state is defined and trigger.from_state is not none else {} %}
+      {{ contains_new_or_escalated_warning(trigger.to_state.attributes, previous, warning_level_to_show | int) }}
     {% endif %}
   payload: |-
     {%- set day_names = {
@@ -387,61 +393,31 @@ variables:
         2
       {%- endif -%}
     {%- endmacro -%}
-    {%- for i in range(warnings_count) -%}
-      {%- set level = state_attr(weather_warning_var, 'warning_' ~ loop.index ~ '_level') -%}
-      {%- if level is not none and level >= warning_level_to_show | int -%}
-        {%- set name = state_attr(weather_warning_var, 'warning_' ~ loop.index ~ '_name') -%}
-        {%- set description = state_attr(weather_warning_var, 'warning_' ~ loop.index ~ '_description') -%}
-        {%- set warning_type = state_attr(weather_warning_var, 'warning_' ~ loop.index ~ '_type') | int -%}
-        {%- set color = state_attr(weather_warning_var, 'warning_' ~ loop.index ~ '_color') -%}
-        {%- set start_ts = state_attr(weather_warning_var, 'warning_' ~ loop.index ~ '_start') | as_timestamp -%}
-        {%- set end_ts = state_attr(weather_warning_var, 'warning_' ~ loop.index ~ '_end') | as_timestamp -%}
-        {%- set start_day = start_ts | timestamp_custom('%a', local=true) -%}
-        {%- set end_day = end_ts | timestamp_custom('%a', local=true) -%}
-        {%- set start_time = start_ts | timestamp_custom('%H:%M', local=true) -%}
-        {%- set end_time = end_ts | timestamp_custom('%H:%M', local=true) -%}
-        {%- set start_label = day_names[start_day][day_index] if start_day in day_names else start_day -%}
-        {%- set end_label = day_names[end_day][day_index] if end_day in day_names else end_day -%}
-        {%- set prefix = 'Warn' -%}
-        {%- set name_clean = name | replace('VORABINFORMATION ', '') -%}
-        {%- set text = prefix ~ 'stufe ' ~ level ~ ': ' ~ name_clean
-          ~ ', ' ~ start_label ~ ' ' ~ start_time ~ ' Uhr - ' ~ end_label ~ ' ' ~ end_time ~ ' Uhr' -%}
-        {%- if show_details and description -%}
-          {%- set desc_clean = description | replace('\n', ' ') | regex_replace('\\s+', ' ') | trim -%}
-          {%- if desc_clean -%}
-            {%- set text = (text ~ ' : ' ~ desc_clean) | truncate(320, True, '…') -%}
-          {%- endif -%}
-        {%- endif -%}
-        {%- set frame = {
-          'icon': warning_icon(warning_type),
-          'pushIcon': push_icon(icons_behavior) | int,
-          'text': text,
-          'repeat': message_repeat | int,
-          'color': color,
-        } -%}
-        {%- set frames.items = frames.items + [frame] -%}
-      {%- endif -%}
-    {%- endfor -%}
-    {%- if weather_preliminary_warning_var -%}
-      {%- for i in range(preliminary_warnings_count) -%}
-        {%- set level = state_attr(weather_preliminary_warning_var, 'warning_' ~ loop.index ~ '_level') -%}
+    {%- macro append_warnings(entity_id, text_prefix) -%}
+      {%- set count = state_attr(entity_id, 'warning_count') | int(0) -%}
+      {%- set region_name = state_attr(entity_id, 'region_name') | default('', true)
+        | regex_replace('^(Gemeinde|Stadt|Hansestadt)\\s+', '') | trim -%}
+      {%- for idx in range(1, count + 1) -%}
+        {%- set level = state_attr(entity_id, 'warning_' ~ idx ~ '_level') -%}
         {%- if level is not none and level >= warning_level_to_show | int -%}
-          {%- set name = state_attr(weather_preliminary_warning_var, 'warning_' ~ loop.index ~ '_name') -%}
-          {%- set description = state_attr(weather_preliminary_warning_var, 'warning_' ~ loop.index ~ '_description') -%}
-          {%- set warning_type = state_attr(weather_preliminary_warning_var, 'warning_' ~ loop.index ~ '_type') | int -%}
-          {%- set color = state_attr(weather_preliminary_warning_var, 'warning_' ~ loop.index ~ '_color') -%}
-          {%- set start_ts = state_attr(weather_preliminary_warning_var, 'warning_' ~ loop.index ~ '_start') | as_timestamp -%}
-          {%- set end_ts = state_attr(weather_preliminary_warning_var, 'warning_' ~ loop.index ~ '_end') | as_timestamp -%}
+          {%- set name = state_attr(entity_id, 'warning_' ~ idx ~ '_name') | default('', true) -%}
+          {%- set description = state_attr(entity_id, 'warning_' ~ idx ~ '_description') -%}
+          {%- set warning_type = state_attr(entity_id, 'warning_' ~ idx ~ '_type') | int(0) -%}
+          {%- set color = state_attr(entity_id, 'warning_' ~ idx ~ '_color') -%}
+          {%- set start_ts = state_attr(entity_id, 'warning_' ~ idx ~ '_start') | as_timestamp -%}
+          {%- set end_ts = state_attr(entity_id, 'warning_' ~ idx ~ '_end') | as_timestamp -%}
           {%- set start_day = start_ts | timestamp_custom('%a', local=true) -%}
           {%- set end_day = end_ts | timestamp_custom('%a', local=true) -%}
           {%- set start_time = start_ts | timestamp_custom('%H:%M', local=true) -%}
           {%- set end_time = end_ts | timestamp_custom('%H:%M', local=true) -%}
           {%- set start_label = day_names[start_day][day_index] if start_day in day_names else start_day -%}
           {%- set end_label = day_names[end_day][day_index] if end_day in day_names else end_day -%}
-          {%- set prefix = 'Vorwarn' -%}
           {%- set name_clean = name | replace('VORABINFORMATION ', '') -%}
-          {%- set text = prefix ~ 'stufe ' ~ level ~ ': ' ~ name_clean
+          {%- set text = text_prefix ~ 'stufe ' ~ level ~ ': ' ~ name_clean
             ~ ', ' ~ start_label ~ ' ' ~ start_time ~ ' Uhr - ' ~ end_label ~ ' ' ~ end_time ~ ' Uhr' -%}
+          {%- if show_region_name and region_name -%}
+            {%- set text = region_name ~ ': ' ~ text -%}
+          {%- endif -%}
           {%- if show_details and description -%}
             {%- set desc_clean = description | replace('\n', ' ') | regex_replace('\\s+', ' ') | trim -%}
             {%- if desc_clean -%}
@@ -458,7 +434,13 @@ variables:
           {%- set frames.items = frames.items + [frame] -%}
         {%- endif -%}
       {%- endfor -%}
-    {%- endif -%}
+    {%- endmacro -%}
+    {%- for entity_id in weather_warning_vars -%}
+      {{- append_warnings(entity_id, 'Warn') -}}
+    {%- endfor -%}
+    {%- for entity_id in weather_preliminary_warning_vars -%}
+      {{- append_warnings(entity_id, 'Vorwarn') -}}
+    {%- endfor -%}
     {%- if frames.items | length == 0 -%}
       {{ '' }}
     {%- elif frames.items | length == 1 -%}
@@ -471,10 +453,8 @@ triggers:
   - trigger: state
     entity_id: !input weather_warning_var
     id: warning_changed
-  - trigger: event
-    event_type: state_changed
-    event_data:
-      entity_id: !input weather_preliminary_warning_var
+  - trigger: state
+    entity_id: !input weather_preliminary_warning_var
     id: preliminary_changed
   - trigger: homeassistant
     event: start

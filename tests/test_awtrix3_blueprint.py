@@ -4,7 +4,6 @@ import unittest
 
 from blueprint_helpers import (
     REPOSITORY_ROOT,
-    event_trigger,
     load_blueprint,
     load_fixture,
     state_trigger,
@@ -42,12 +41,9 @@ class Awtrix3BlueprintTests(unittest.TestCase):
             "state_attr": lambda entity_id, attribute: entity_attributes.get(
                 entity_id, {}
             ).get(attribute),
-            "weather_warning_var": "sensor.dwd_warning",
-            "weather_preliminary_warning_var": "",
-            "warnings_count": attributes.get("warning_count", 0),
-            "preliminary_warnings_count": preliminary_attributes.get(
-                "warning_count", 0
-            ),
+            "weather_warning_vars": ["sensor.dwd_warning"],
+            "weather_preliminary_warning_vars": [],
+            "show_region_name": False,
             "warning_level_to_show": 1,
             "message_repeat": 2,
             "icons_behavior": "Move with text",
@@ -73,8 +69,8 @@ class Awtrix3BlueprintTests(unittest.TestCase):
         device_filter = inputs["awtrix"]["selector"]["device"]["filter"]
 
         self.assertEqual(metadata["homeassistant"]["min_version"], "2024.10.0")
-        self.assertNotIn("app_name", inputs)
-        self.assertEqual(self.blueprint["variables"]["app_topic"], "jc-23")
+        self.assertIn("Blueprint version: 2.0.0", metadata["description"])
+        self.assertEqual(self.blueprint["variables"]["app_topic"], "dwd-warnings")
         self.assertEqual(
             device_filter,
             [
@@ -85,23 +81,41 @@ class Awtrix3BlueprintTests(unittest.TestCase):
                 }
             ],
         )
+        self.assertTrue(
+            inputs["weather_warning_var"]["selector"]["entity"]["multiple"]
+        )
         preliminary = inputs["weather_preliminary_warning_var"]
-        self.assertEqual(preliminary["default"], "")
-        self.assertFalse(preliminary["selector"]["entity"]["multiple"])
+        self.assertEqual(preliminary["default"], [])
+        self.assertTrue(preliminary["selector"]["entity"]["multiple"])
 
-    def test_optional_preliminary_sensor_uses_filtered_event_trigger(self):
+    def test_optional_preliminary_sensors_use_state_trigger(self):
         preliminary_trigger = next(
             trigger
             for trigger in self.blueprint["triggers"]
             if trigger["id"] == "preliminary_changed"
         )
 
-        self.assertEqual(preliminary_trigger["trigger"], "event")
-        self.assertEqual(preliminary_trigger["event_type"], "state_changed")
+        self.assertEqual(preliminary_trigger["trigger"], "state")
         self.assertEqual(
-            preliminary_trigger["event_data"]["entity_id"],
-            "weather_preliminary_warning_var",
+            preliminary_trigger["entity_id"], "weather_preliminary_warning_var"
         )
+
+    def test_legacy_single_sensor_inputs_are_normalized_to_lists(self):
+        warnings = self.render_variable(
+            "weather_warning_vars", weather_warning_input="sensor.dwd_warning"
+        )
+        preliminary = self.render_variable(
+            "weather_preliminary_warning_vars",
+            weather_preliminary_warning_input="sensor.dwd_preliminary",
+        )
+        no_preliminary = self.render_variable(
+            "weather_preliminary_warning_vars",
+            weather_preliminary_warning_input="",
+        )
+
+        self.assertEqual(warnings, "['sensor.dwd_warning']")
+        self.assertEqual(preliminary, "['sensor.dwd_preliminary']")
+        self.assertEqual(no_preliminary, "[]")
 
     def test_warning_renders_awtrix_3_payload(self):
         payload = json.loads(self.render_variable("payload", **self.payload_context()))
@@ -116,6 +130,60 @@ class Awtrix3BlueprintTests(unittest.TestCase):
         )
         self.assertNotIn("rtttl", payload)
 
+    def test_multiple_regions_prefix_every_warning_with_short_region(self):
+        second_region = copy.deepcopy(self.sample)
+        second_region["region_name"] = "Hansestadt Beispielstadt"
+        second_region["warning_1_name"] = "STURM"
+        second_region["warning_1_type"] = 51
+        entity_attributes = {
+            "sensor.dwd_warning": self.sample,
+            "sensor.dwd_warning_two": second_region,
+        }
+        context = self.payload_context(
+            weather_warning_vars=[
+                "sensor.dwd_warning",
+                "sensor.dwd_warning_two",
+            ],
+            show_region_name=True,
+        )
+        context["state_attr"] = (
+            lambda entity_id, attribute: entity_attributes.get(entity_id, {}).get(
+                attribute
+            )
+        )
+
+        payload = json.loads(self.render_variable("payload", **context))
+
+        self.assertEqual(len(payload), 2)
+        self.assertTrue(payload[0]["text"].startswith("ABC: Warnstufe 1:"))
+        self.assertTrue(
+            payload[1]["text"].startswith("Beispielstadt: Warnstufe 1:")
+        )
+
+    def test_region_names_strip_prefixes_and_count_unique_regions(self):
+        entities = {
+            "sensor.one": {"region_name": "Gemeinde Nord"},
+            "sensor.one_preliminary": {"region_name": "Gemeinde Nord"},
+            "sensor.two": {"region_name": "Stadt Süd"},
+            "sensor.three": {"region_name": "Hansestadt West"},
+        }
+
+        rendered = self.render_variable(
+            "region_names",
+            all_weather_warning_vars=list(entities),
+            state_attr=lambda entity_id, attribute: entities[entity_id].get(attribute),
+        )
+
+        self.assertEqual(rendered, "['Nord', 'Süd', 'West']")
+        self.assertTrue(
+            self.render_boolean(
+                "show_region_name", region_names=["Nord", "Süd", "West"]
+            )
+        )
+        self.assertFalse(
+            self.render_boolean("show_region_name", region_names=["Nord"])
+        )
+
     def test_no_warning_renders_empty_payload(self):
         rendered = self.render_variable(
             "payload", **self.payload_context(attributes={"warning_count": 0})
@@ -126,7 +194,7 @@ class Awtrix3BlueprintTests(unittest.TestCase):
     def test_preliminary_warning_renders_as_second_frame(self):
         context = self.payload_context(
             preliminary_attributes=self.sample,
-            weather_preliminary_warning_var="sensor.dwd_preliminary",
+            weather_preliminary_warning_vars=["sensor.dwd_preliminary"],
         )
 
         payload = json.loads(self.render_variable("payload", **context))
@@ -150,7 +218,7 @@ class Awtrix3BlueprintTests(unittest.TestCase):
 
         self.assertFalse(should_publish)
 
-    def test_preliminary_change_detection_uses_event_state(self):
+    def test_preliminary_change_detection_uses_changed_sensor_state(self):
         previous = copy.deepcopy(self.sample)
         current = copy.deepcopy(self.sample)
         current["warning_1_level"] = 2
@@ -160,7 +228,7 @@ class Awtrix3BlueprintTests(unittest.TestCase):
             send_on_change_only=True,
             show_details=False,
             warning_level_to_show=1,
-            trigger=event_trigger("preliminary_changed", current, previous),
+            trigger=state_trigger("preliminary_changed", current, previous),
         )
 
         self.assertTrue(should_publish)
@@ -186,7 +254,7 @@ class Awtrix3BlueprintTests(unittest.TestCase):
             "should_beep",
             play_beep=True,
             warning_level_to_show=1,
-            trigger=event_trigger(
+            trigger=state_trigger(
                 "preliminary_changed", escalated, self.sample
             ),
         )

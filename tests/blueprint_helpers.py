@@ -42,11 +42,15 @@ def _timestamp_custom(value, date_format, local=False):
     return datetime.fromtimestamp(value, timezone).strftime(date_format)
 
 
+def _regex_replace(value, pattern, replacement):
+    return re.sub(pattern, replacement, value)
+
+
 def template_environment():
     environment = Environment()
     environment.filters["as_timestamp"] = _as_timestamp
     environment.filters["timestamp_custom"] = _timestamp_custom
-    environment.filters["regex_replace"] = re.sub
+    environment.filters["regex_replace"] = _regex_replace
     environment.tests["search"] = (
         lambda value, pattern: re.search(pattern, value) is not None
     )
