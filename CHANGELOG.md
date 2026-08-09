@@ -3,7 +3,16 @@
 All notable blueprint changes are documented here. The `main` branch remains
 the update channel for Home Assistant imports.
 
-## AWTRIX NG 1.0.0 - Unreleased
+## AWTRIX NG 1.0.1 - 2026-08-09
+
+### Fixed
+
+- Clear an existing pushed-app group before publishing its current frames so
+  surplus indexed apps such as `dwd-warnings0` are removed.
+- Exclude warnings whose DWD end time has already passed, even if the source
+  sensor still exposes them until its next update.
+
+## AWTRIX NG 1.0.0 - 2026-08-05
 
 ### Added
 
@@ -14,7 +23,7 @@ the update channel for Home Assistant imports.
 - Recovery after Home Assistant and AWTRIX restarts without recovery beeps.
 - Blueprint version displayed at the beginning of the description.
 
-## AWTRIX 3 2.0.0 - Unreleased
+## AWTRIX 3 2.0.0 - 2026-08-05
 
 ### Added
 

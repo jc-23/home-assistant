@@ -3,7 +3,7 @@
 blueprint:
   name: "AWTRIX NG DWD weather warnings ⛈️"
   description: |-
-    **Blueprint version: 1.0.0**
+    **Blueprint version: 1.0.1**
 
     Show weather warnings issued by DWD on one or more AWTRIX NG devices.
 
@@ -268,6 +268,7 @@ variables:
   icon_warning: !input icon_warning
   full_day_names: !input full_day_names
   show_details: !input show_details
+  current_timestamp: "{{ now() | as_timestamp }}"
   is_selected_device_trigger: >-
     {{
       trigger is not defined
@@ -395,13 +396,15 @@ variables:
         | regex_replace('^(Gemeinde|Stadt|Hansestadt)\\s+', '') | trim -%}
       {%- for idx in range(1, count + 1) -%}
         {%- set level = state_attr(entity_id, 'warning_' ~ idx ~ '_level') -%}
-        {%- if level is not none and level | int(0) >= warning_level_to_show | int -%}
+        {%- set end_ts = state_attr(entity_id, 'warning_' ~ idx ~ '_end') | as_timestamp(0) -%}
+        {%- if level is not none
+          and level | int(0) >= warning_level_to_show | int
+          and end_ts > current_timestamp | float(0) -%}
           {%- set name = state_attr(entity_id, 'warning_' ~ idx ~ '_name') | default('', true) -%}
           {%- set description = state_attr(entity_id, 'warning_' ~ idx ~ '_description') -%}
           {%- set warning_type = state_attr(entity_id, 'warning_' ~ idx ~ '_type') | int(0) -%}
           {%- set color = state_attr(entity_id, 'warning_' ~ idx ~ '_color') -%}
           {%- set start_ts = state_attr(entity_id, 'warning_' ~ idx ~ '_start') | as_timestamp -%}
-          {%- set end_ts = state_attr(entity_id, 'warning_' ~ idx ~ '_end') | as_timestamp -%}
           {%- set start_day = start_ts | timestamp_custom('%a', local=true) -%}
           {%- set end_day = end_ts | timestamp_custom('%a', local=true) -%}
           {%- set start_time = start_ts | timestamp_custom('%H:%M', local=true) -%}
@@ -488,4 +491,14 @@ actions:
             qos: 0
             retain: false
             topic: "{{ repeat.item }}/cmd/apps/pushed/{{ app_topic }}"
-            payload: "{{ payload }}"
+            payload: ""
+        - if:
+            - condition: template
+              value_template: "{{ payload != '' }}"
+          then:
+            - action: mqtt.publish
+              data:
+                qos: 0
+                retain: false
+                topic: "{{ repeat.item }}/cmd/apps/pushed/{{ app_topic }}"
+                payload: "{{ payload }}"

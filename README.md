@@ -7,7 +7,7 @@ Home Assistant automation blueprints for displaying Deutscher Wetterdienst
 
 | Firmware | Blueprint version | Support | Blueprint | Import |
 |---|---:|---|---|---|
-| AWTRIX NG | 1.0.0 | Active development | [DWD weather warnings](blueprints/automation/awtrix_ng_weather_warning_dwd.yaml) | [![Import the AWTRIX NG blueprint into Home Assistant](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fraw.githubusercontent.com%2Fjc-23%2Fhome-assistant%2Fmain%2Fblueprints%2Fautomation%2Fawtrix_ng_weather_warning_dwd.yaml) |
+| AWTRIX NG | 1.0.1 | Active development | [DWD weather warnings](blueprints/automation/awtrix_ng_weather_warning_dwd.yaml) | [![Import the AWTRIX NG blueprint into Home Assistant](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fraw.githubusercontent.com%2Fjc-23%2Fhome-assistant%2Fmain%2Fblueprints%2Fautomation%2Fawtrix_ng_weather_warning_dwd.yaml) |
 | AWTRIX 3 | 2.0.0 | Maintenance and compatibility fixes | [DWD weather warnings](blueprints/automation/awtrix_weather_warning_dwd.yaml) | [![Import the AWTRIX 3 blueprint into Home Assistant](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fraw.githubusercontent.com%2Fjc-23%2Fhome-assistant%2Fmain%2Fblueprints%2Fautomation%2Fawtrix_weather_warning_dwd.yaml) |
 
 The two files deliberately remain separate. AWTRIX NG uses different MQTT

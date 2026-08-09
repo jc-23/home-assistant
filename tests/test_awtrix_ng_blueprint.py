@@ -1,6 +1,7 @@
 import copy
 import json
 import unittest
+from datetime import datetime
 from types import SimpleNamespace
 
 from blueprint_helpers import (
@@ -44,6 +45,9 @@ class AwtrixNgBlueprintTests(unittest.TestCase):
             "icons_behavior": "push",
             "full_day_names": False,
             "show_details": False,
+            "current_timestamp": datetime.fromisoformat(
+                "2026-08-05T12:00:00+00:00"
+            ).timestamp(),
             "icon_frost": "ww-frost",
             "icon_thunderstorm": "ww-thunderstorm",
             "icon_pouring": "ww-pouring",
@@ -65,7 +69,7 @@ class AwtrixNgBlueprintTests(unittest.TestCase):
         device_filter = required["awtrix"]["selector"]["device"]["filter"]
 
         self.assertEqual(metadata["homeassistant"]["min_version"], "2024.11.0")
-        self.assertIn("Blueprint version: 1.0.0", metadata["description"])
+        self.assertIn("Blueprint version: 1.0.1", metadata["description"])
         self.assertNotIn("app_name", behavior)
         self.assertEqual(self.blueprint["variables"]["app_topic"], "dwd-warnings")
         self.assertTrue(
@@ -176,6 +180,24 @@ class AwtrixNgBlueprintTests(unittest.TestCase):
 
         self.assertEqual(self.render_variable("payload", **context), "")
 
+    def test_expired_warning_renders_empty_payload(self):
+        context = self.payload_context(
+            {"sensor.dwd_warning": self.sample},
+            current_timestamp=datetime.fromisoformat(
+                "2026-08-05T17:00:01+00:00"
+            ).timestamp(),
+        )
+
+        self.assertEqual(self.render_variable("payload", **context), "")
+
+    def test_warning_without_end_time_renders_empty_payload(self):
+        warning = copy.deepcopy(self.sample)
+        warning["warning_1_end"] = None
+
+        context = self.payload_context({"sensor.dwd_warning": warning})
+
+        self.assertEqual(self.render_variable("payload", **context), "")
+
     def test_region_change_is_a_relevant_payload_change(self):
         previous = copy.deepcopy(self.sample)
         current = copy.deepcopy(self.sample)
@@ -215,10 +237,28 @@ class AwtrixNgBlueprintTests(unittest.TestCase):
         rendered_actions = json.dumps(self.blueprint["actions"])
 
         self.assertIn("/cmd/apps/pushed/", rendered_actions)
-        self.assertEqual(rendered_actions.count("/cmd/apps/pushed/"), 1)
+        self.assertEqual(rendered_actions.count("/cmd/apps/pushed/"), 2)
         self.assertIn("/cmd/sounds/play", rendered_actions)
         self.assertNotIn("/custom/", rendered_actions)
         self.assertNotIn("/rtttl", rendered_actions)
+
+    def test_actions_clear_indexed_apps_before_publishing_current_payload(self):
+        sequence = self.blueprint["actions"][0]["repeat"]["sequence"]
+        clear_action = sequence[1]
+        publish_if = sequence[2]
+
+        self.assertEqual(clear_action["action"], "mqtt.publish")
+        self.assertEqual(clear_action["data"]["payload"], "")
+        self.assertEqual(
+            clear_action["data"]["topic"],
+            "{{ repeat.item }}/cmd/apps/pushed/{{ app_topic }}",
+        )
+        self.assertEqual(
+            publish_if["if"][0]["value_template"], "{{ payload != '' }}"
+        )
+        self.assertEqual(
+            publish_if["then"][0]["data"]["payload"], "{{ payload }}"
+        )
 
     def test_availability_trigger_is_limited_to_selected_prefixes(self):
         selected = self.render_boolean(

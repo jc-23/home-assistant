@@ -31,10 +31,15 @@ def load_fixture(name):
         return yaml.safe_load(fixture_file)
 
 
-def _as_timestamp(value):
+def _as_timestamp(value, default=None):
     if isinstance(value, (int, float)):
         return value
-    return datetime.fromisoformat(value).timestamp()
+    try:
+        return datetime.fromisoformat(value).timestamp()
+    except (TypeError, ValueError):
+        if default is not None:
+            return default
+        raise
 
 
 def _timestamp_custom(value, date_format, local=False):
